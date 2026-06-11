@@ -6,3 +6,5 @@ node_modules/
 .env.local
 public/data/current-question-set.json
 public/data/sample-question-set.json
+public/data/current-question-set.json
+_backup_before_rebase/
