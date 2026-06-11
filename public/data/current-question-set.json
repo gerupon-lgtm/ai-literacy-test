@@ -1,8 +1,8 @@
 {
-  "questionSetId": "ai-literacy-2026-06-select",
-  "version": "1.0.0",
+  "questionSetId": "ai-literacy-2026-06-sample",
+  "version": "0.0.1",
   "locked": false,
-  "updatedAt": "2026-06-11T12:01:04.676Z",
+  "updatedAt": "2026-06-11T12:47:53.610Z",
   "settings": {
     "questionCount": 20,
     "passingScore": 70,
@@ -12,7 +12,7 @@
     "categoryDistribution": [
       {
         "categoryId": "C-001",
-        "weight": 11,
+        "weight": 13,
         "priority": 1
       },
       {
@@ -22,12 +22,12 @@
       },
       {
         "categoryId": "C-003",
-        "weight": 10,
+        "weight": 11,
         "priority": 3
       },
       {
         "categoryId": "C-004",
-        "weight": 6,
+        "weight": 7,
         "priority": 4
       },
       {
@@ -37,7 +37,7 @@
       },
       {
         "categoryId": "C-006",
-        "weight": 6,
+        "weight": 7,
         "priority": 6
       },
       {
@@ -164,28 +164,10 @@
     },
     {
       "id": "Q005",
-      "category": "指示の出し方",
-      "difficulty": "standard",
-      "type": "single",
-      "question": "AIに税務上の判断基準を整理させたいとき、回答の精度を高めるために有効な手法はどれですか？",
-      "choices": [
-        "「とにかく詳しく書いてください」とだけ指示する",
-        "「税理士として、若手職員に教える形式で」と役割を指定する",
-        "AIに考えさせる時間を与えず、即座に回答させる",
-        "専門用語を一切使わずに指示を出す"
-      ],
-      "answer": [
-        1
-      ],
-      "explanation": "AIに特定の役割（ロール）を与えることで、出力のトーンや専門性が最適化されます。",
-      "tags": []
-    },
-    {
-      "id": "Q006",
       "category": "情報管理",
       "difficulty": "standard",
       "type": "single",
-      "question": "AIに顧客の申告書の内容を要約させたい場合、入力データとして適切な処理はどれですか？",
+      "question": "AIに顧客資料の内容を要約させたい場合、入力データとして適切な処理はどれですか？",
       "choices": [
         "顧客名や住所などの個人情報をすべて削除（匿名化）して入力する",
         "社外秘の情報であっても、AIが学習して便利になるためそのまま入力する",
@@ -199,7 +181,7 @@
       "tags": []
     },
     {
-      "id": "Q007",
+      "id": "Q006",
       "category": "情報管理",
       "difficulty": "standard",
       "type": "single",
@@ -217,7 +199,7 @@
       "tags": []
     },
     {
-      "id": "Q008",
+      "id": "Q007",
       "category": "情報管理",
       "difficulty": "standard",
       "type": "single",
@@ -235,7 +217,7 @@
       "tags": []
     },
     {
-      "id": "Q009",
+      "id": "Q008",
       "category": "情報管理",
       "difficulty": "standard",
       "type": "single",
@@ -253,7 +235,7 @@
       "tags": []
     },
     {
-      "id": "Q010",
+      "id": "Q009",
       "category": "セキュリティ",
       "difficulty": "standard",
       "type": "single",
@@ -274,7 +256,7 @@
       ]
     },
     {
-      "id": "Q011",
+      "id": "Q010",
       "category": "セキュリティ",
       "difficulty": "standard",
       "type": "single",
@@ -295,28 +277,7 @@
       ]
     },
     {
-      "id": "Q012",
-      "category": "法務・倫理",
-      "difficulty": "standard",
-      "type": "single",
-      "question": "AIを使って、他者が作成した著作権のある専門的な解説記事をほぼそのままコピーして、自事務所のブログとして公開した場合のリスクとして正しいものはどれですか？",
-      "choices": [
-        "AIが作成した文章なので、著作権侵害にはならない",
-        "文章を一部書き換えただけであれば、法的に全く問題ない",
-        "元の著作者の権利を侵害し、著作権法違反となる可能性がある",
-        "AIを利用したことは公表していれば、どのような利用方法でも正当化される"
-      ],
-      "answer": [
-        2
-      ],
-      "explanation": "AIを利用しても、既存の著作物を不適切に利用すれば著作権侵害となります。独自の視点での作成が必要です。",
-      "tags": [
-        "著作権",
-        "倫理"
-      ]
-    },
-    {
-      "id": "Q013",
+      "id": "Q011",
       "category": "法務・倫理",
       "difficulty": "standard",
       "type": "single",
@@ -337,11 +298,11 @@
       ]
     },
     {
-      "id": "Q014",
+      "id": "Q012",
       "category": "業務活用",
       "difficulty": "standard",
       "type": "single",
-      "question": "税理士事務所でのAI活用において、職員のスキルアップや効率化に最も寄与する「肯定的な活用方法」はどれですか？",
+      "question": "利用者のスキルアップや効率化に最も寄与する「肯定的な活用方法」はどれですか？",
       "choices": [
         "複雑な税務判断をすべてAIに任せ、職員は確認作業を省略する",
         "AIに顧客の悩み相談をすべて代行させ、職員との接触時間をゼロにする",
@@ -358,7 +319,7 @@
       ]
     },
     {
-      "id": "Q015",
+      "id": "Q013",
       "category": "業務活用",
       "difficulty": "standard",
       "type": "single",
@@ -379,7 +340,7 @@
       ]
     },
     {
-      "id": "Q016",
+      "id": "Q014",
       "category": "最新トレンド",
       "difficulty": "standard",
       "type": "single",
@@ -400,7 +361,7 @@
       ]
     },
     {
-      "id": "Q017",
+      "id": "Q015",
       "category": "基本理解",
       "difficulty": "standard",
       "type": "single",
@@ -421,8 +382,8 @@
       ]
     },
     {
-      "id": "Q018",
-      "category": "C-001 基本理解",
+      "id": "Q016",
+      "category": "基本理解",
       "difficulty": "standard",
       "type": "single",
       "question": "AIに文章を生成させる際、より良い結果を得るためには、どのような点に注意すべきですか？",
@@ -442,8 +403,8 @@
       ]
     },
     {
-      "id": "Q019",
-      "category": "C-002 指示の出し方",
+      "id": "Q017",
+      "category": "指示の出し方",
       "difficulty": "standard",
       "type": "single",
       "question": "AIに作成させる資料の目的を伝える上で、最も重要な要素は何ですか？",
@@ -463,8 +424,8 @@
       ]
     },
     {
-      "id": "Q020",
-      "category": "C-002 指示の出し方",
+      "id": "Q018",
+      "category": "指示の出し方",
       "difficulty": "standard",
       "type": "single",
       "question": "AIにレポートの作成を依頼する際、最初にAIに確認すべき事項として最も適切なものはどれですか？",
@@ -484,8 +445,8 @@
       ]
     },
     {
-      "id": "Q021",
-      "category": "C-003 情報管理",
+      "id": "Q019",
+      "category": "情報管理",
       "difficulty": "standard",
       "type": "single",
       "question": "AIが生成した顧客データに関する分析レポートを社内で共有する前に、確認すべき主な点は次のうちどれですか？",
@@ -505,8 +466,8 @@
       ]
     },
     {
-      "id": "Q022",
-      "category": "C-004 セキュリティ",
+      "id": "Q020",
+      "category": "セキュリティ",
       "difficulty": "standard",
       "type": "single",
       "question": "AIエージェントに機密性の高い業務を依頼する際、最も重要なセキュリティ対策は何ですか？",
@@ -526,8 +487,8 @@
       ]
     },
     {
-      "id": "Q023",
-      "category": "C-006 業務活用",
+      "id": "Q021",
+      "category": "業務活用",
       "difficulty": "standard",
       "type": "multiple",
       "question": "AIエージェントを活用して業務を効率化する上で、以下のうち、最も効果的な活用方法の組み合わせはどれですか？",
@@ -548,8 +509,8 @@
       ]
     },
     {
-      "id": "Q024",
-      "category": "C-001 基本理解",
+      "id": "Q022",
+      "category": "基本理解",
       "difficulty": "standard",
       "type": "single",
       "question": "AIが生成した文章で、事実と異なる情報が含まれている可能性を減らすために、最も効果的な方法は次のうちどれですか？",
@@ -570,8 +531,8 @@
       ]
     },
     {
-      "id": "Q025",
-      "category": "C-005 法務・倫理",
+      "id": "Q023",
+      "category": "法務・倫理",
       "difficulty": "standard",
       "type": "single",
       "question": "AIが生成した文章の著作権に関するリスクを最小限に抑えるために、まず確認すべきことは何ですか？",
@@ -592,7 +553,7 @@
       ]
     },
     {
-      "id": "Q026",
+      "id": "Q024",
       "category": "基本理解",
       "difficulty": "standard",
       "type": "single",
@@ -613,7 +574,7 @@
       ]
     },
     {
-      "id": "Q027",
+      "id": "Q025",
       "category": "基本理解",
       "difficulty": "standard",
       "type": "single",
@@ -634,28 +595,7 @@
       ]
     },
     {
-      "id": "Q028",
-      "category": "指示の出し方",
-      "difficulty": "standard",
-      "type": "single",
-      "question": "AIにレポート作成を依頼する際、最も効果的な指示の書き方はどれですか？",
-      "choices": [
-        "「売上データを元に、先月の売上分析レポートを300文字で作成してください」",
-        "「レポートを書いて」",
-        "「何でもいいので文書を作って」",
-        "「レポート作成」"
-      ],
-      "answer": [
-        0
-      ],
-      "explanation": "具体的かつ限定的な指示が、期待通りの出力を得るコツです。",
-      "tags": [
-        "指示設計",
-        "業務活用"
-      ]
-    },
-    {
-      "id": "Q029",
+      "id": "Q026",
       "category": "基本理解",
       "difficulty": "standard",
       "type": "multiple",
@@ -677,7 +617,7 @@
       ]
     },
     {
-      "id": "Q030",
+      "id": "Q027",
       "category": "基本理解",
       "difficulty": "standard",
       "type": "single",
@@ -698,7 +638,7 @@
       ]
     },
     {
-      "id": "Q031",
+      "id": "Q028",
       "category": "基本理解",
       "difficulty": "standard",
       "type": "single",
@@ -719,7 +659,7 @@
       ]
     },
     {
-      "id": "Q032",
+      "id": "Q029",
       "category": "基本理解",
       "difficulty": "standard",
       "type": "single",
@@ -741,7 +681,7 @@
       ]
     },
     {
-      "id": "Q033",
+      "id": "Q030",
       "category": "指示の出し方",
       "difficulty": "standard",
       "type": "single",
@@ -762,7 +702,7 @@
       ]
     },
     {
-      "id": "Q034",
+      "id": "Q031",
       "category": "情報管理",
       "difficulty": "standard",
       "type": "single",
@@ -784,7 +724,7 @@
       ]
     },
     {
-      "id": "Q035",
+      "id": "Q032",
       "category": "情報管理",
       "difficulty": "standard",
       "type": "single",
@@ -806,7 +746,7 @@
       ]
     },
     {
-      "id": "Q036",
+      "id": "Q033",
       "category": "情報管理",
       "difficulty": "standard",
       "type": "single",
@@ -828,7 +768,7 @@
       ]
     },
     {
-      "id": "Q037",
+      "id": "Q034",
       "category": "セキュリティ",
       "difficulty": "standard",
       "type": "single",
@@ -849,7 +789,7 @@
       ]
     },
     {
-      "id": "Q038",
+      "id": "Q035",
       "category": "セキュリティ",
       "difficulty": "standard",
       "type": "single",
@@ -871,7 +811,7 @@
       ]
     },
     {
-      "id": "Q039",
+      "id": "Q036",
       "category": "法務・倫理",
       "difficulty": "standard",
       "type": "single",
@@ -893,7 +833,7 @@
       ]
     },
     {
-      "id": "Q040",
+      "id": "Q037",
       "category": "業務活用",
       "difficulty": "standard",
       "type": "single",
@@ -915,7 +855,7 @@
       ]
     },
     {
-      "id": "Q041",
+      "id": "Q038",
       "category": "業務活用",
       "difficulty": "standard",
       "type": "single",
@@ -937,7 +877,7 @@
       ]
     },
     {
-      "id": "Q042",
+      "id": "Q039",
       "category": "最新トレンド",
       "difficulty": "standard",
       "type": "single",
@@ -959,7 +899,7 @@
       ]
     },
     {
-      "id": "Q043",
+      "id": "Q040",
       "category": "最新トレンド",
       "difficulty": "standard",
       "type": "single",
@@ -981,7 +921,7 @@
       ]
     },
     {
-      "id": "Q044",
+      "id": "Q041",
       "category": "基本理解",
       "difficulty": "basic",
       "type": "single",
@@ -1002,7 +942,7 @@
       ]
     },
     {
-      "id": "Q045",
+      "id": "Q042",
       "category": "指示の出し方",
       "difficulty": "basic",
       "type": "single",
@@ -1023,7 +963,7 @@
       ]
     },
     {
-      "id": "Q046",
+      "id": "Q043",
       "category": "指示の出し方",
       "difficulty": "standard",
       "type": "single",
@@ -1044,7 +984,7 @@
       ]
     },
     {
-      "id": "Q047",
+      "id": "Q044",
       "category": "指示の出し方",
       "difficulty": "standard",
       "type": "single",
@@ -1065,7 +1005,7 @@
       ]
     },
     {
-      "id": "Q048",
+      "id": "Q045",
       "category": "情報管理",
       "difficulty": "standard",
       "type": "multiple",
@@ -1089,7 +1029,7 @@
       ]
     },
     {
-      "id": "Q049",
+      "id": "Q046",
       "category": "情報管理",
       "difficulty": "standard",
       "type": "single",
@@ -1110,7 +1050,7 @@
       ]
     },
     {
-      "id": "Q050",
+      "id": "Q047",
       "category": "情報管理",
       "difficulty": "advanced",
       "type": "single",
@@ -1131,7 +1071,7 @@
       ]
     },
     {
-      "id": "Q051",
+      "id": "Q048",
       "category": "セキュリティ",
       "difficulty": "standard",
       "type": "single",
@@ -1152,7 +1092,7 @@
       ]
     },
     {
-      "id": "Q052",
+      "id": "Q049",
       "category": "セキュリティ",
       "difficulty": "standard",
       "type": "single",
@@ -1173,7 +1113,7 @@
       ]
     },
     {
-      "id": "Q053",
+      "id": "Q050",
       "category": "法務・倫理",
       "difficulty": "standard",
       "type": "single",
@@ -1194,7 +1134,7 @@
       ]
     },
     {
-      "id": "Q054",
+      "id": "Q051",
       "category": "業務活用",
       "difficulty": "basic",
       "type": "single",
@@ -1215,7 +1155,7 @@
       ]
     },
     {
-      "id": "Q055",
+      "id": "Q052",
       "category": "業務活用",
       "difficulty": "standard",
       "type": "single",
