@@ -4,6 +4,7 @@
 import { resolveCategoryAllocation } from './scoring.js';
 import { downloadBlob } from './export.js';
 import { adminLogin, generateQuestions, listModels, isApiConfigured } from './apiClient.js';
+import { initPool } from './pool.js';
 
 const QUESTION_SET_URL = 'data/current-question-set.json';
 
@@ -38,6 +39,21 @@ function bindEvents() {
   $('instruction').addEventListener('input', (e) => {
     $('instr-count').textContent = e.target.value.length;
   });
+
+  // タブ切替
+  $('tab-btn-generate').addEventListener('click', () => switchTab('generate'));
+  $('tab-btn-pool').addEventListener('click', () => switchTab('pool'));
+
+  // 設問プール初期化
+  initPool();
+}
+
+function switchTab(which) {
+  const isGen = which === 'generate';
+  $('tab-generate').classList.toggle('hidden', !isGen);
+  $('tab-pool').classList.toggle('hidden', isGen);
+  $('tab-btn-generate').classList.toggle('active', isGen);
+  $('tab-btn-pool').classList.toggle('active', !isGen);
 }
 
 // ---------- ログイン ----------

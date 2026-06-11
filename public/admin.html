@@ -51,6 +51,14 @@
 
       <!-- S-005 ダッシュボード -->
       <section id="admin-dash" class="screen hidden">
+        <!-- タブナビ -->
+        <div class="tab-nav" role="tablist">
+          <button id="tab-btn-generate" class="tab-btn active" role="tab" type="button">AI生成</button>
+          <button id="tab-btn-pool" class="tab-btn" role="tab" type="button">設問プール／組み立て</button>
+        </div>
+
+        <!-- ===== AI生成タブ ===== -->
+        <div id="tab-generate" class="tab-panel">
         <!-- 現在の設問セット -->
         <div class="panel">
           <h2 class="section-title">現在の設問セット</h2>
@@ -162,6 +170,89 @@
             GitHubリポジトリの <code>public/data/</code> に上書きコミットすると本番反映されます。
           </div>
         </div>
+        </div><!-- /tab-generate -->
+
+        <!-- ===== 設問プール／組み立てタブ ===== -->
+        <div id="tab-pool" class="tab-panel hidden">
+          <div class="panel">
+            <h2 class="section-title">JSONをアップロード</h2>
+            <p class="muted" style="font-size:.86rem;margin-bottom:12px">
+              AI生成などで作成した設問セットJSON（複数可）を読み込み、1つのプールに統合します。
+              ファイルはサーバーに送信されず、ブラウザ内だけで処理されます。
+            </p>
+            <input id="pool-file" class="input" type="file" accept="application/json,.json" multiple>
+            <div id="pool-upload-alert" style="margin-top:10px"></div>
+            <div class="btn-row" style="margin-top:10px">
+              <button id="btn-pool-clear" class="btn btn-ghost" type="button">プールを空にする</button>
+            </div>
+          </div>
+
+          <!-- メタ情報編集 -->
+          <div class="panel hidden" id="pool-meta-panel">
+            <h2 class="section-title">出題セットの情報（手入力で修正可）</h2>
+            <div class="field">
+              <label for="pool-setid">Set ID（内部名）</label>
+              <input id="pool-setid" class="input" type="text" placeholder="ai-literacy-2026-06-custom">
+            </div>
+            <div class="field">
+              <label for="pool-version">バージョン</label>
+              <input id="pool-version" class="input" type="text" placeholder="1.0.0">
+            </div>
+            <div class="grid-2">
+              <div class="field">
+                <label for="pool-count">検定での出題数</label>
+                <input id="pool-count" class="input" type="number" min="1" max="100" value="20">
+              </div>
+              <div class="field">
+                <label for="pool-pass">合格ライン（%）</label>
+                <input id="pool-pass" class="input" type="number" min="0" max="100" value="70">
+              </div>
+            </div>
+            <div class="field">
+              <label class="check-line">
+                <input id="pool-randomize-q" type="checkbox"> 問題の出題順をランダムにする
+              </label>
+              <label class="check-line">
+                <input id="pool-randomize-c" type="checkbox" checked> 選択肢の順番をランダムにする
+              </label>
+            </div>
+            <div id="pool-count-note" class="alert alert-info" style="font-size:.84rem"></div>
+          </div>
+
+          <!-- 統計 -->
+          <div class="panel hidden" id="pool-stats-panel">
+            <h2 class="section-title">プールの状況</h2>
+            <div id="pool-stats"></div>
+          </div>
+
+          <!-- カテゴリ別の設問一覧 -->
+          <div class="panel hidden" id="pool-list-panel">
+            <h2 class="section-title">設問を選択・編集</h2>
+            <div class="alert alert-info" style="font-size:.84rem">
+              採用する設問にチェックを入れてください。各項目は直接編集できます。
+              <span class="dup-badge">重複の可能性</span> のマークは既存の採用済み設問と内容が近いことを示します（参考。除外は手動）。
+            </div>
+            <div class="btn-row" style="margin:10px 0">
+              <button id="btn-pool-all" class="btn btn-ghost" type="button">すべて選択</button>
+              <button id="btn-pool-none" class="btn btn-ghost" type="button">すべて解除</button>
+              <button id="btn-pool-dedup" class="btn btn-ghost" type="button">重複候補を一括解除</button>
+            </div>
+            <div id="pool-list"></div>
+          </div>
+
+          <!-- 出力 -->
+          <div class="panel hidden" id="pool-output-panel">
+            <h2 class="section-title">出題セットを書き出し</h2>
+            <div id="pool-output-summary" class="muted" style="font-size:.86rem;margin-bottom:12px"></div>
+            <div id="pool-output-alert"></div>
+            <div class="btn-row">
+              <button id="btn-pool-export" class="btn btn-primary" type="button">current-question-set.json を書き出す</button>
+            </div>
+            <div class="alert alert-info" style="margin-top:14px">
+              書き出したJSONを GitHub の <code>public/data/current-question-set.json</code> に上書きコミットすると本番反映されます。
+            </div>
+          </div>
+        </div><!-- /tab-pool -->
       </section>
     </main>
 
