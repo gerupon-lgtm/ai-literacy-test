@@ -87,5 +87,14 @@ export default async function handler(req, res) {
   if (want === 'all' || want === 'ollama') tasks.push(listOllama().then((r) => { results.ollama = r; }));
   await Promise.all(tasks);
 
-  return res.status(200).json({ ok: true, results });
+  // 現在有効な設定を可視化（環境変数が効いているかの確認用）
+  const config = {
+    providerOrder: (process.env.LLM_PROVIDER_ORDER || '(未設定→既定: gemini,openrouter,ollama)'),
+    geminiModel: (process.env.GEMINI_MODEL || '(未設定→既定)'),
+    openrouterModel: (process.env.OPENROUTER_MODEL || '(未設定→既定)'),
+    ollamaModel: (process.env.OLLAMA_MODEL || '(未設定→既定)'),
+    ollamaBaseUrl: (process.env.OLLAMA_BASE_URL || 'https://ollama.gerupon.uk'),
+  };
+
+  return res.status(200).json({ ok: true, results, config });
 }

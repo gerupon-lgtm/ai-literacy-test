@@ -176,28 +176,40 @@ async function onDiagnose() {
   setAlert('diag-result', 'info', '<span class="spin"></span> 各プロバイダの利用可能モデルを確認中…');
   $('btn-diagnose').disabled = true;
   try {
-    const results = await listModels(adminToken, 'all');
+    const data = await listModels(adminToken, 'all');
+    const results = data.results || data;  // 後方互換
+    const config = data.config;
     const blocks = [];
+
+    // 現在の設定（環境変数が効いているかの確認）
+    if (config) {
+      const cfgHtml = '<b>現在の設定（Vercel環境変数）</b><br><small>'
+        + 'フォールバック順: <code>' + escapeHtml(config.providerOrder) + '</code><br>'
+        + 'Geminiモデル: <code>' + escapeHtml(config.geminiModel) + '</code><br>'
+        + 'OpenRouterモデル: <code>' + escapeHtml(config.openrouterModel) + '</code><br>'
+        + 'Ollamaモデル: <code>' + escapeHtml(config.ollamaModel) + '</code></small>';
+      blocks.push(cfgHtml);
+    }
 
     // Gemini
     if (results.gemini) {
       const g = results.gemini;
       if (!g.configured) blocks.push('<b>Gemini</b>: 未設定');
-      else if (g.note) blocks.push(`<b>Gemini</b>: エラー（${escapeHtml(g.note)}）`);
-      else blocks.push(`<b>Gemini</b>: ${g.count} モデル利用可<br><small>${(g.models || []).slice(0, 30).map(escapeHtml).join(', ')}</small>`);
+      else if (g.note) blocks.push('<b>Gemini</b>: エラー（' + escapeHtml(g.note) + '）');
+      else blocks.push('<b>Gemini</b>: ' + g.count + ' モデル利用可<br><small>' + (g.models || []).slice(0, 30).map(escapeHtml).join(', ') + '</small>');
     }
     // OpenRouter
     if (results.openrouter) {
       const o = results.openrouter;
       if (!o.configured) blocks.push('<b>OpenRouter</b>: 未設定');
-      else if (o.note) blocks.push(`<b>OpenRouter</b>: エラー（${escapeHtml(o.note)}）`);
-      else blocks.push(`<b>OpenRouter</b>: 無料モデル ${o.freeCount} 件<br><small>${(o.freeModels || []).slice(0, 30).map(escapeHtml).join(', ')}</small>`);
+      else if (o.note) blocks.push('<b>OpenRouter</b>: エラー（' + escapeHtml(o.note) + '）');
+      else blocks.push('<b>OpenRouter</b>: 無料モデル ' + o.freeCount + ' 件<br><small>' + (o.freeModels || []).slice(0, 30).map(escapeHtml).join(', ') + '</small>');
     }
     // Ollama
     if (results.ollama) {
       const ol = results.ollama;
-      if (ol.note) blocks.push(`<b>Ollama</b>: ${escapeHtml(ol.note)}`);
-      else blocks.push(`<b>Ollama</b>: ${ol.count} モデル<br><small>${(ol.models || []).map(escapeHtml).join(', ')}</small>`);
+      if (ol.note) blocks.push('<b>Ollama</b>: ' + escapeHtml(ol.note));
+      else blocks.push('<b>Ollama</b>: ' + ol.count + ' モデル<br><small>' + (ol.models || []).map(escapeHtml).join(', ') + '</small>');
     }
 
     setAlert('diag-result', 'info',
@@ -222,7 +234,7 @@ async function onGenerate() {
 
   const payload = buildGeneratePayload(instruction);
   const count = payload.settings.questionCount;
-  const batchSize = 5;
+  const batchSize = Math.max(1, Math.min(10, parseInt($('set-batch').value, 10) || 5));
   const totalBatches = Math.ceil(count / batchSize);
 
   setAlert('gen-alert', 'info',

@@ -92,6 +92,11 @@
             <label for="set-pass">合格ライン（%）</label>
             <input id="set-pass" class="input" type="number" min="0" max="100" value="70">
           </div>
+          <div class="field">
+            <label for="set-batch">分割生成のバッチサイズ（1回あたりの問題数）</label>
+            <input id="set-batch" class="input" type="number" min="1" max="10" value="5">
+            <div class="hint">小さいほど安定（1回が短い）。OpenRouter無料モデルは429が出やすいので 8〜10 を推奨。Gemini等は 5 でも快適。</div>
+          </div>
         </div>
 
         <!-- S-007 カテゴリ配分 -->

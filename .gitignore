@@ -4,5 +4,3 @@ node_modules/
 *.log
 .env
 .env.local
-./public/data/
-.gitignore
