@@ -7,8 +7,8 @@
     "questionCount": 20,
     "passingScore": 70,
     "difficulty": "standard",
-    "randomizeQuestions": false,
-    "randomizeChoices": false,
+    "randomizeQuestions": true,
+    "randomizeChoices": true,
     "showExplanationAfterAnswer": false,
     "categoryDistributionMode": "weighted",
     "categoryDistribution": [
