@@ -1,0 +1,407 @@
+// =========================================================
+// pool.js  設問プール／組み立てモード
+// ---------------------------------------------------------
+// 複数の設問セットJSONをブラウザ内で統合し、カテゴリ別に分類。
+// 管理者がチェックで採用を選び、各項目を手入力編集して、
+// 1つの current-question-set.json として書き出す。
+//
+// すべてブラウザ内で完結（サーバー送信なし）。
+// =========================================================
+import { downloadBlob } from './export.js';
+import { CATEGORY_DEFS } from './categories.js';
+
+// プール状態
+let pool = [];          // { uid, question, choices[], answer[], type, category, difficulty, explanation, tags[], selected, dupOf }
+let meta = {
+  questionSetId: '',
+  version: '1.0.0',
+  questionCount: 20,
+  passingScore: 70,
+  randomizeQuestions: false,
+  randomizeChoices: true,
+};
+let uidSeq = 1;
+
+const $ = (id) => document.getElementById(id);
+
+// ---- 初期化（admin.js から呼ぶ） ----
+export function initPool() {
+  $('pool-file').addEventListener('change', onFilesSelected);
+  $('btn-pool-clear').addEventListener('click', clearPool);
+  $('btn-pool-all').addEventListener('click', () => setAllSelected(true));
+  $('btn-pool-none').addEventListener('click', () => setAllSelected(false));
+  $('btn-pool-dedup').addEventListener('click', deselectDuplicates);
+  $('btn-pool-export').addEventListener('click', exportSet);
+
+  // メタ入力の変更を反映
+  ['pool-setid', 'pool-version', 'pool-count', 'pool-pass', 'pool-randomize-q', 'pool-randomize-c']
+    .forEach((id) => $(id).addEventListener('input', onMetaChanged));
+}
+
+// ---- ファイル読み込み ----
+async function onFilesSelected(e) {
+  const files = Array.from(e.target.files || []);
+  if (!files.length) return;
+  let added = 0;
+  let errors = [];
+
+  for (const file of files) {
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const questions = extractQuestions(data);
+      if (!questions.length) { errors.push(`${file.name}: 設問が見つかりません`); continue; }
+      // メタは最初のファイルから補完（未設定のときだけ）
+      absorbMeta(data);
+      for (const q of questions) {
+        const norm = normalizeQuestion(q);
+        if (norm) { pool.push(norm); added++; }
+      }
+    } catch (err) {
+      errors.push(`${file.name}: 読み込み失敗（${err.message}）`);
+    }
+  }
+
+  // 重複マーキング
+  markDuplicates();
+  // 入力欄リセット（同じファイルを再選択できるよう）
+  e.target.value = '';
+
+  const msg = `${added} 問を追加しました（プール合計 ${pool.length} 問）。`
+    + (errors.length ? `<br><small>${errors.map(esc).join('<br>')}</small>` : '');
+  setAlert('pool-upload-alert', errors.length ? 'warn' : 'info', msg);
+
+  render();
+}
+
+// 様々な形（{questions:[]} / 配列 / {questionSetDraft:{questions}}）から設問配列を取り出す
+function extractQuestions(data) {
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.questions)) return data.questions;
+  if (data && data.questionSetDraft && Array.isArray(data.questionSetDraft.questions)) return data.questionSetDraft.questions;
+  return [];
+}
+
+// メタ情報を吸収（既に手入力済みなら上書きしない）
+function absorbMeta(data) {
+  const src = data && data.questionSetDraft ? data.questionSetDraft : data;
+  if (!src || typeof src !== 'object') return;
+  if (!meta.questionSetId && src.questionSetId) meta.questionSetId = String(src.questionSetId);
+  if (src.version && meta.version === '1.0.0') meta.version = String(src.version);
+  const s = src.settings || {};
+  if (s.passingScore != null && meta.passingScore === 70) meta.passingScore = Number(s.passingScore);
+  syncMetaInputs();
+}
+
+// 設問を内部形式へ正規化
+function normalizeQuestion(q) {
+  if (!q || typeof q !== 'object') return null;
+  const question = String(q.question || '').trim();
+  const choices = Array.isArray(q.choices) ? q.choices.map((c) => String(c)) : [];
+  if (!question || choices.length < 2) return null;
+
+  let answer = q.answer;
+  if (typeof answer === 'number') answer = [answer];
+  if (!Array.isArray(answer)) answer = [];
+  answer = answer.filter((a) => Number.isInteger(a) && a >= 0 && a < choices.length);
+  if (!answer.length) answer = [0];
+
+  let type = q.type === 'multiple' ? 'multiple' : 'single';
+  if (type === 'single' && answer.length > 1) answer = [answer[0]];
+
+  // カテゴリはラベルに正規化
+  let category = String(q.category || '');
+  const byId = CATEGORY_DEFS.find((c) => c.id === category);
+  const byLabel = CATEGORY_DEFS.find((c) => c.label === category);
+  category = byId ? byId.label : (byLabel ? byLabel.label : (category || '未分類'));
+
+  return {
+    uid: uidSeq++,
+    question,
+    choices,
+    answer,
+    type,
+    category,
+    difficulty: ['basic', 'standard', 'advanced'].includes(q.difficulty) ? q.difficulty : 'standard',
+    explanation: String(q.explanation || ''),
+    tags: Array.isArray(q.tags) ? q.tags.map(String) : [],
+    selected: true,
+    dupOf: null,
+  };
+}
+
+// ---- 重複検出（bi-gram Jaccard）----
+function markDuplicates() {
+  for (let i = 0; i < pool.length; i++) {
+    pool[i].dupOf = null;
+    for (let j = 0; j < i; j++) {
+      if (similarity(pool[i].question, pool[j].question) >= 0.40) {
+        pool[i].dupOf = pool[j].uid;
+        break;
+      }
+    }
+  }
+}
+
+function similarity(a, b) {
+  const na = norm(a), nb = norm(b);
+  if (!na || !nb) return 0;
+  if (na === nb) return 1;
+  const ga = bigrams(na), gb = bigrams(nb);
+  if (!ga.size || !gb.size) return 0;
+  let inter = 0;
+  for (const g of ga) if (gb.has(g)) inter++;
+  return inter / (ga.size + gb.size - inter);
+}
+function norm(s) { return String(s || '').toLowerCase().replace(/[\s　、。，．・「」『』（）()【】\[\]！？!?]/g, ''); }
+function bigrams(s) { const set = new Set(); for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2)); return set; }
+
+// ---- 操作 ----
+function clearPool() {
+  if (pool.length && !confirm('プールを空にしますか？')) return;
+  pool = [];
+  render();
+  setAlert('pool-upload-alert', 'info', 'プールを空にしました。');
+}
+function setAllSelected(v) { pool.forEach((q) => { q.selected = v; }); render(); }
+function deselectDuplicates() {
+  let n = 0;
+  pool.forEach((q) => { if (q.dupOf) { q.selected = false; n++; } });
+  render();
+  setAlert('pool-upload-alert', 'info', `重複候補 ${n} 問の選択を解除しました。`);
+}
+
+function onMetaChanged() {
+  meta.questionSetId = $('pool-setid').value.trim();
+  meta.version = $('pool-version').value.trim() || '1.0.0';
+  meta.questionCount = Math.max(1, Math.min(100, parseInt($('pool-count').value, 10) || 20));
+  meta.passingScore = Math.max(0, Math.min(100, parseInt($('pool-pass').value, 10) || 70));
+  meta.randomizeQuestions = $('pool-randomize-q').checked;
+  meta.randomizeChoices = $('pool-randomize-c').checked;
+  updateCountNote();
+}
+function syncMetaInputs() {
+  $('pool-setid').value = meta.questionSetId;
+  $('pool-version').value = meta.version;
+  $('pool-count').value = meta.questionCount;
+  $('pool-pass').value = meta.passingScore;
+  $('pool-randomize-q').checked = meta.randomizeQuestions;
+  $('pool-randomize-c').checked = meta.randomizeChoices;
+}
+
+// 出題数 vs 採用数の関係を案内
+function updateCountNote() {
+  const sel = pool.filter((q) => q.selected).length;
+  const note = $('pool-count-note');
+  if (sel === 0) { note.textContent = 'まだ設問が選択されていません。'; return; }
+  if (sel > meta.questionCount) {
+    note.innerHTML = `採用 ${sel} 問 ＞ 出題数 ${meta.questionCount} 問。`
+      + `<b>ランダム出題モード</b>になり、検定では毎回 ${meta.questionCount} 問がランダムに出題されます。`;
+    // 多い場合はランダム出題を自動でオンにする（ユーザーは変更可）
+    if (!meta.randomizeQuestions) { meta.randomizeQuestions = true; $('pool-randomize-q').checked = true; }
+  } else if (sel < meta.questionCount) {
+    note.innerHTML = `採用 ${sel} 問 ＜ 出題数 ${meta.questionCount} 問。`
+      + `このままだと出題数が採用数までになります。出題数を ${sel} 以下にするか、設問を追加してください。`;
+  } else {
+    note.textContent = `採用 ${sel} 問 ＝ 出題数 ${meta.questionCount} 問。全問が出題されます。`;
+  }
+}
+
+// ---- 出力 ----
+function exportSet() {
+  const selected = pool.filter((q) => q.selected);
+  if (!selected.length) { setAlert('pool-output-alert', 'error', '設問が1問も選択されていません。'); return; }
+  if (selected.length < meta.questionCount) {
+    setAlert('pool-output-alert', 'error',
+      `採用 ${selected.length} 問が出題数 ${meta.questionCount} 問より少ないです。出題数を減らすか設問を追加してください。`);
+    return;
+  }
+
+  // カテゴリ配分を採用設問から自動算出
+  const catCount = {};
+  selected.forEach((q) => { catCount[q.category] = (catCount[q.category] || 0) + 1; });
+  const usedCats = CATEGORY_DEFS.filter((c) => catCount[c.label]);
+  const categories = usedCats.map((c) => ({ id: c.id, name: c.label }));
+  const categoryDistribution = usedCats.map((c, idx) => ({
+    categoryId: c.id, weight: catCount[c.label], priority: idx + 1,
+  }));
+
+  const out = {
+    questionSetId: meta.questionSetId || `custom-${Date.now()}`,
+    version: meta.version || '1.0.0',
+    locked: false,
+    updatedAt: new Date().toISOString(),
+    settings: {
+      questionCount: meta.questionCount,
+      passingScore: meta.passingScore,
+      randomizeQuestions: meta.randomizeQuestions,
+      randomizeChoices: meta.randomizeChoices,
+      categoryDistributionMode: 'weighted',
+      categoryDistribution,
+    },
+    categories,
+    questions: selected.map((q, i) => ({
+      id: `Q${String(i + 1).padStart(3, '0')}`,
+      category: q.category,
+      difficulty: q.difficulty,
+      type: q.type,
+      question: q.question,
+      choices: q.choices,
+      answer: q.answer,
+      explanation: q.explanation,
+      tags: q.tags,
+    })),
+  };
+
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+  downloadBlob(blob, 'current-question-set.json');
+  setAlert('pool-output-alert', 'info',
+    `${selected.length} 問の出題セットを書き出しました（出題数 ${meta.questionCount}）。GitHubへコミットして反映してください。`);
+}
+
+// ---- 描画 ----
+function render() {
+  const has = pool.length > 0;
+  ['pool-meta-panel', 'pool-stats-panel', 'pool-list-panel', 'pool-output-panel']
+    .forEach((id) => $(id).classList.toggle('hidden', !has));
+  if (!has) return;
+
+  syncMetaInputs();
+  renderStats();
+  renderList();
+  updateCountNote();
+  renderOutputSummary();
+}
+
+function renderStats() {
+  const total = pool.length;
+  const sel = pool.filter((q) => q.selected).length;
+  const dup = pool.filter((q) => q.dupOf).length;
+  const byCat = {};
+  pool.forEach((q) => {
+    if (!byCat[q.category]) byCat[q.category] = { total: 0, sel: 0 };
+    byCat[q.category].total++;
+    if (q.selected) byCat[q.category].sel++;
+  });
+  const rows = Object.entries(byCat)
+    .map(([cat, v]) => `<tr><th scope="row">${esc(cat)}</th><td class="num">${v.sel} / ${v.total}</td></tr>`)
+    .join('');
+  $('pool-stats').innerHTML =
+    `<div class="muted" style="font-size:.88rem;margin-bottom:10px">`
+    + `合計 ${total} 問 ／ 採用 <b>${sel}</b> 問 ／ 重複候補 ${dup} 問</div>`
+    + `<table class="cat-table"><tbody>${rows}</tbody></table>`;
+}
+
+function renderList() {
+  const container = $('pool-list');
+  container.innerHTML = '';
+
+  // カテゴリ順に並べる（定義順→未分類）
+  const order = CATEGORY_DEFS.map((c) => c.label).concat(['未分類']);
+  const cats = [...new Set(pool.map((q) => q.category))]
+    .sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
+
+  for (const cat of cats) {
+    const items = pool.filter((q) => q.category === cat);
+    const selCount = items.filter((q) => q.selected).length;
+    const group = document.createElement('div');
+    group.className = 'pool-cat-group';
+    group.innerHTML = `<div class="pool-cat-head"><span>${esc(cat)}</span><span class="count">採用 ${selCount} / ${items.length}</span></div>`;
+    items.forEach((q) => group.appendChild(renderQuestion(q)));
+    container.appendChild(group);
+  }
+}
+
+function renderQuestion(q) {
+  const el = document.createElement('div');
+  el.className = 'pool-q' + (q.selected ? ' selected' : '');
+
+  const choicesHtml = q.choices.map((c, ci) => {
+    const inputType = q.type === 'multiple' ? 'checkbox' : 'radio';
+    const checked = q.answer.includes(ci) ? 'checked' : '';
+    return `<div class="pool-choice">`
+      + `<input type="${inputType}" name="ans-${q.uid}" class="correct" data-ci="${ci}" ${checked} title="正解">`
+      + `<input type="text" class="ch" data-ci="${ci}" value="${escAttr(c)}">`
+      + `</div>`;
+  }).join('');
+
+  const dupBadge = q.dupOf ? ` <span class="dup-badge">重複の可能性</span>` : '';
+
+  el.innerHTML = `
+    <div class="pool-q-head">
+      <input type="checkbox" class="sel" ${q.selected ? 'checked' : ''}>
+      <div class="pool-q-body">
+        <textarea class="q-text" rows="2">${esc(q.question)}</textarea>
+        ${choicesHtml}
+        <div class="pool-q-meta">
+          <select class="type">
+            <option value="single" ${q.type === 'single' ? 'selected' : ''}>単一選択</option>
+            <option value="multiple" ${q.type === 'multiple' ? 'selected' : ''}>複数選択</option>
+          </select>
+          <select class="cat">
+            ${CATEGORY_DEFS.map((c) => `<option value="${escAttr(c.label)}" ${c.label === q.category ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}
+            <option value="未分類" ${q.category === '未分類' ? 'selected' : ''}>未分類</option>
+          </select>
+          <select class="diff">
+            <option value="basic" ${q.difficulty === 'basic' ? 'selected' : ''}>basic</option>
+            <option value="standard" ${q.difficulty === 'standard' ? 'selected' : ''}>standard</option>
+            <option value="advanced" ${q.difficulty === 'advanced' ? 'selected' : ''}>advanced</option>
+          </select>
+          ${dupBadge}
+          <button class="btn-remove" type="button">削除</button>
+        </div>
+        <textarea class="expl" rows="1" placeholder="解説">${esc(q.explanation)}</textarea>
+      </div>
+    </div>`;
+
+  // イベント
+  el.querySelector('.sel').addEventListener('change', (e) => {
+    q.selected = e.target.checked;
+    el.classList.toggle('selected', q.selected);
+    renderStats(); updateCountNote(); renderOutputSummary();
+  });
+  el.querySelector('.q-text').addEventListener('input', (e) => { q.question = e.target.value; });
+  el.querySelector('.expl').addEventListener('input', (e) => { q.explanation = e.target.value; });
+  el.querySelectorAll('.ch').forEach((inp) => {
+    inp.addEventListener('input', (e) => { q.choices[+e.target.dataset.ci] = e.target.value; });
+  });
+  el.querySelectorAll('.correct').forEach((inp) => {
+    inp.addEventListener('change', () => {
+      const checked = [...el.querySelectorAll('.correct')].filter((x) => x.checked).map((x) => +x.dataset.ci);
+      q.answer = checked.length ? checked : [0];
+    });
+  });
+  el.querySelector('.type').addEventListener('change', (e) => {
+    q.type = e.target.value;
+    if (q.type === 'single' && q.answer.length > 1) q.answer = [q.answer[0]];
+    renderList(); // ラジオ/チェックボックス切替のため再描画
+  });
+  el.querySelector('.cat').addEventListener('change', (e) => { q.category = e.target.value; render(); });
+  el.querySelector('.diff').addEventListener('change', (e) => { q.difficulty = e.target.value; });
+  el.querySelector('.btn-remove').addEventListener('click', () => {
+    pool = pool.filter((x) => x.uid !== q.uid);
+    markDuplicates();
+    render();
+  });
+
+  return el;
+}
+
+function renderOutputSummary() {
+  const sel = pool.filter((q) => q.selected).length;
+  $('pool-output-summary').innerHTML =
+    `採用 <b>${sel}</b> 問 → 出題数 ${meta.questionCount} 問の検定セットを作成します。`
+    + (sel > meta.questionCount ? `（ランダム出題モード）` : '');
+}
+
+// ---- util ----
+function setAlert(id, kind, html) {
+  const el = $(id);
+  if (!el) return;
+  el.innerHTML = `<div class="alert alert-${kind === 'error' ? 'error' : kind === 'warn' ? 'warn' : 'info'}">${html}</div>`;
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function escAttr(s) { return esc(s); }
