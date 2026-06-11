@@ -176,9 +176,10 @@ async function onDiagnose() {
   setAlert('diag-result', 'info', '<span class="spin"></span> 各プロバイダの利用可能モデルを確認中…');
   $('btn-diagnose').disabled = true;
   try {
-    const data = await listModels(adminToken, 'all');
+    const data = await listModels(adminToken, 'all', true);
     const results = data.results || data;  // 後方互換
     const config = data.config;
+    const probes = data.probes;
     const blocks = [];
 
     // 現在の設定（環境変数が効いているかの確認）
@@ -210,6 +211,17 @@ async function onDiagnose() {
       const ol = results.ollama;
       if (ol.note) blocks.push('<b>Ollama</b>: ' + escapeHtml(ol.note));
       else blocks.push('<b>Ollama</b>: ' + ol.count + ' モデル<br><small>' + (ol.models || []).map(escapeHtml).join(', ') + '</small>');
+    }
+
+    // OpenRouter 実テスト（probe）結果
+    if (probes && Array.isArray(probes.openrouter)) {
+      const lines = probes.openrouter.map((p) => {
+        const tag = p.ok ? 'OK' : 'NG';
+        const st = p.status != null ? ('HTTP ' + p.status) : 'エラー';
+        return '・<code>' + escapeHtml(p.model) + '</code> → ' + tag + '（' + st + '）'
+          + (p.detail ? '<br>&nbsp;&nbsp;<small>' + escapeHtml(p.detail) + '</small>' : '');
+      });
+      blocks.push('<b>OpenRouter 実テスト（実際に1回送信）</b><br><small>' + lines.join('<br>') + '</small>');
     }
 
     setAlert('diag-result', 'info',

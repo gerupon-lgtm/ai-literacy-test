@@ -200,8 +200,8 @@ export async function generateQuestions(payload) {
   return generateQuestionsChunked(payload);
 }
 
-/** 各プロバイダで実際に使えるモデルを診断する。results と config を返す。 */
-export async function listModels(adminToken, provider = 'all') {
-  const data = await postJson('list-models', { adminToken, provider }, { timeout: 30000 });
-  return { results: data.results || {}, config: data.config || null };
+/** 各プロバイダで実際に使えるモデルを診断する。results, config, probes を返す。 */
+export async function listModels(adminToken, provider = 'all', probe = false) {
+  const data = await postJson('list-models', { adminToken, provider, probe }, { timeout: 40000 });
+  return { results: data.results || {}, config: data.config || null, probes: data.probes || null };
 }

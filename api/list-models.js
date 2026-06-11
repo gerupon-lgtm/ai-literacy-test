@@ -27,6 +27,46 @@ async function listOpenRouter() {
   return { configured: true, freeModels: free, freeCount: free.length };
 }
 
+// 実際に chat/completions へ最小リクエストを送り、生の応答を返す。
+// これにより 401（キー無効）/ 429（レート制限）/ 200（成功）を画面で判別できる。
+async function probeOpenRouter(model) {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) return { model, ok: false, status: null, note: 'OPENROUTER_API_KEY 未設定' };
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': process.env.SITE_URL || '',
+        'X-Title': process.env.APP_NAME || 'AI Literacy Test',
+      },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: 'ping' }],
+        max_tokens: 5,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    const bodyText = await res.text().catch(() => '');
+    let detail = bodyText.slice(0, 300);
+    // 成功なら内容を簡潔に
+    if (res.ok) {
+      try {
+        const j = JSON.parse(bodyText);
+        const c = j?.choices?.[0]?.message?.content;
+        detail = c ? `応答: ${String(c).slice(0, 40)}` : '応答あり';
+      } catch { /* keep raw */ }
+    }
+    return { model, ok: res.ok, status: res.status, detail };
+  } catch (err) {
+    return { model, ok: false, status: null, detail: `接続エラー: ${String(err && err.message || err)}` };
+  }
+}
+
 async function listGemini() {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return { configured: false, models: [], note: 'GEMINI_API_KEY 未設定' };
@@ -87,6 +127,18 @@ export default async function handler(req, res) {
   if (want === 'all' || want === 'ollama') tasks.push(listOllama().then((r) => { results.ollama = r; }));
   await Promise.all(tasks);
 
+  // probe=true なら、設定中の OpenRouter モデルへ実テストリクエストを送る。
+  // 401/429/200 を生の応答で確認できる（「リクエストが本当に通るか」の判定）。
+  let probes = null;
+  if (body && body.probe) {
+    const orModels = (process.env.OPENROUTER_MODEL || 'openrouter/free')
+      .split(',').map((s) => s.trim()).filter(Boolean).slice(0, 4);
+    probes = { openrouter: [] };
+    for (const m of orModels) {
+      probes.openrouter.push(await probeOpenRouter(m));
+    }
+  }
+
   // 現在有効な設定を可視化（環境変数が効いているかの確認用）
   const config = {
     providerOrder: (process.env.LLM_PROVIDER_ORDER || '(未設定→既定: gemini,openrouter,ollama)'),
@@ -94,7 +146,9 @@ export default async function handler(req, res) {
     openrouterModel: (process.env.OPENROUTER_MODEL || '(未設定→既定)'),
     ollamaModel: (process.env.OLLAMA_MODEL || '(未設定→既定)'),
     ollamaBaseUrl: (process.env.OLLAMA_BASE_URL || 'https://ollama.gerupon.uk'),
+    hasOpenRouterKey: !!process.env.OPENROUTER_API_KEY,
+    hasGeminiKey: !!process.env.GEMINI_API_KEY,
   };
 
-  return res.status(200).json({ ok: true, results, config });
+  return res.status(200).json({ ok: true, results, config, probes });
 }
