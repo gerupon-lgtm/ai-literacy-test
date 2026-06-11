@@ -196,7 +196,7 @@ export default async function handler(req, res) {
     '      "question": "問題文",',
     '      "choices": ["選択肢1", "選択肢2", "選択肢3", "選択肢4"],',
     '      "answer": [0],',
-    '      "explanation": "短い解説",',
+    '      "explanation": "解説（80字以内で簡潔に）",',
     '      "tags": ["タグ"]',
     '    }',
     '  ]',
@@ -207,11 +207,14 @@ export default async function handler(req, res) {
 
   let aiText, provider, model;
   try {
+    // 1問あたり約1500トークンを確保（日本語の問題文＋選択肢4つ＋解説）。
+    // バッチが大きいほど多く必要。下限6000・上限16000でクランプ。
+    const dynamicMaxTokens = Math.min(16000, Math.max(6000, thisBatchCount * 1500));
     const result = await callLLM({
       system: GENERATE_SYSTEM_PROMPT,
       user: userContent,
       temperature: 0.5,
-      maxTokens: 4000,
+      maxTokens: dynamicMaxTokens,
       jsonSchema: QUESTION_SCHEMA,
       timeoutMs: 55000,
     });
@@ -229,8 +232,15 @@ export default async function handler(req, res) {
   try {
     parsed = extractJsonLoose(aiText);
   } catch (err) {
-    console.error('generate-questions parse error:', err && err.message, aiText && aiText.slice(0, 300));
-    return res.status(502).json({ ok: false, code: 'AI_PARSE_ERROR', message: 'AI応答を解析できませんでした。再試行してください。' });
+    // JSONが途中で切れた場合の修復を試みる（完成している設問だけ救出）。
+    const repaired = repairTruncatedQuestionsJson(aiText);
+    if (repaired && Array.isArray(repaired.questions) && repaired.questions.length > 0) {
+      console.warn('generate-questions: 切れたJSONを修復し', repaired.questions.length, '問を救出');
+      parsed = repaired;
+    } else {
+      console.error('generate-questions parse error:', err && err.message, aiText && aiText.slice(0, 300));
+      return res.status(502).json({ ok: false, code: 'AI_PARSE_ERROR', message: 'AI応答を解析できませんでした。再試行してください。' });
+    }
   }
 
   const rawQuestions = Array.isArray(parsed.questions) ? parsed.questions : [];
@@ -314,6 +324,56 @@ function bigrams(s) {
   const set = new Set();
   for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2));
   return set;
+}
+
+// 途中で切れた questions JSON を修復する。
+// 完成している設問オブジェクトだけを救出して { questions: [...] } を返す。
+// 方針: questions 配列内の各 { ... } を波括弧の対応で切り出し、個別に JSON.parse する。
+function repairTruncatedQuestionsJson(text) {
+  if (!text || typeof text !== 'string') return null;
+  // ```json フェンスがあれば中身を取り出す
+  const fence = text.match(/```(?:json)?\s*([\s\S]*)/i);
+  if (fence) text = fence[1];
+
+  const qKey = text.indexOf('"questions"');
+  const arrStart = text.indexOf('[', qKey >= 0 ? qKey : 0);
+  if (arrStart === -1) return null;
+
+  const questions = [];
+  let i = arrStart + 1;
+  const n = text.length;
+
+  while (i < n) {
+    // 次のオブジェクト開始 '{' を探す（配列終端 ']' が来たら終了）
+    while (i < n && text[i] !== '{' && text[i] !== ']') i++;
+    if (i >= n || text[i] === ']') break;
+
+    // 波括弧の対応を取りつつ、文字列内の波括弧・エスケープは無視して終端を探す
+    let depth = 0, inStr = false, esc = false;
+    const start = i;
+    let end = -1;
+    for (let j = i; j < n; j++) {
+      const ch = text[j];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === '\\') esc = true;
+        else if (ch === '"') inStr = false;
+      } else {
+        if (ch === '"') inStr = true;
+        else if (ch === '{') depth++;
+        else if (ch === '}') { depth--; if (depth === 0) { end = j; break; } }
+      }
+    }
+    if (end === -1) break; // 最後のオブジェクトは未完 → 破棄
+    try {
+      questions.push(JSON.parse(text.slice(start, end + 1)));
+    } catch {
+      // この1件は壊れている → スキップ
+    }
+    i = end + 1;
+  }
+
+  return questions.length ? { questions } : null;
 }
 
 // 全体のカテゴリ配分を [{categoryId,label,count}] で返す。
