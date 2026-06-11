@@ -128,14 +128,14 @@ import { callLLM as _callLLM } from './_providers.js';
 
 export async function callOpenRouter({
   system, user, temperature = 0.3, maxTokens = 4000,
-  responseFormat = null, jsonSchema = null, timeoutMs = 55000,
+  responseFormat = null, jsonSchema = null, jsonMode = true, timeoutMs = 55000,
 }) {
   // responseFormat に json_schema が入っていれば schema を取り出す
   let schema = jsonSchema;
   if (!schema && responseFormat && responseFormat.type === 'json_schema') {
     schema = responseFormat.json_schema && responseFormat.json_schema.schema;
   }
-  const { content } = await _callLLM({ system, user, temperature, maxTokens, jsonSchema: schema, timeoutMs });
+  const { content } = await _callLLM({ system, user, temperature, maxTokens, jsonSchema: schema, jsonMode, timeoutMs });
   return content;
 }
 

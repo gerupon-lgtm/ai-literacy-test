@@ -71,7 +71,7 @@ const DEFAULT_MODELS = {
 // ---------------------------------------------------------
 // OpenRouter
 // ---------------------------------------------------------
-async function callOpenRouterModel({ model, system, user, temperature, maxTokens, jsonSchema, timeoutMs }) {
+async function callOpenRouterModel({ model, system, user, temperature, maxTokens, jsonSchema, jsonMode, timeoutMs }) {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error('OPENROUTER_API_KEY is not configured');
 
@@ -81,13 +81,16 @@ async function callOpenRouterModel({ model, system, user, temperature, maxTokens
 
   const body = { model, messages, temperature, max_tokens: maxTokens };
   // structured outputs。json_schema が使えるモデルなら厳密化、無ければ json_object。
-  if (jsonSchema) {
-    body.response_format = {
-      type: 'json_schema',
-      json_schema: { name: 'response', strict: false, schema: jsonSchema },
-    };
-  } else {
-    body.response_format = { type: 'json_object' };
+  // jsonMode=false（プレーンテキスト希望）のときは response_format を付けない。
+  if (jsonMode !== false) {
+    if (jsonSchema) {
+      body.response_format = {
+        type: 'json_schema',
+        json_schema: { name: 'response', strict: false, schema: jsonSchema },
+      };
+    } else {
+      body.response_format = { type: 'json_object' };
+    }
   }
 
   const res = await fetchWithTimeout('https://openrouter.ai/api/v1/chat/completions', {
@@ -114,7 +117,7 @@ async function callOpenRouterModel({ model, system, user, temperature, maxTokens
 // ---------------------------------------------------------
 // Google Gemini（generateContent API）
 // ---------------------------------------------------------
-async function callGeminiModel({ model, system, user, temperature, maxTokens, jsonSchema, timeoutMs }) {
+async function callGeminiModel({ model, system, user, temperature, maxTokens, jsonSchema, jsonMode, timeoutMs }) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY is not configured');
 
@@ -122,9 +125,10 @@ async function callGeminiModel({ model, system, user, temperature, maxTokens, js
   const generationConfig = {
     temperature,
     maxOutputTokens: maxTokens,
-    responseMimeType: 'application/json',
+    // jsonMode=false（プレーンテキスト希望）なら text/plain。
+    responseMimeType: jsonMode === false ? 'text/plain' : 'application/json',
   };
-  if (jsonSchema) generationConfig.responseSchema = toGeminiSchema(jsonSchema);
+  if (jsonMode !== false && jsonSchema) generationConfig.responseSchema = toGeminiSchema(jsonSchema);
 
   const body = {
     contents: [{ role: 'user', parts: [{ text: user }] }],
@@ -171,7 +175,7 @@ function toGeminiSchema(schema) {
 // Service Token（CF-Access-Client-Id / CF-Access-Client-Secret）対応。
 // 認証バイパス済みならヘッダ無しでも動く。
 // ---------------------------------------------------------
-async function callOllamaModel({ model, system, user, temperature, maxTokens, jsonSchema, timeoutMs }) {
+async function callOllamaModel({ model, system, user, temperature, maxTokens, jsonSchema, jsonMode, timeoutMs }) {
   const base = (process.env.OLLAMA_BASE_URL || 'https://ollama.gerupon.uk').replace(/\/+$/, '');
   const url = `${base}/api/chat`;
 
@@ -191,9 +195,11 @@ async function callOllamaModel({ model, system, user, temperature, maxTokens, js
     messages,
     stream: false,
     options: { temperature, num_predict: maxTokens },
-    // Ollama は format に 'json' または JSON Schema オブジェクトを受け付ける
-    format: jsonSchema ? jsonSchema : 'json',
   };
+  // jsonMode=false（プレーンテキスト希望）なら format を付けない。
+  if (jsonMode !== false) {
+    body.format = jsonSchema ? jsonSchema : 'json';
+  }
 
   const res = await fetchWithTimeout(url, {
     method: 'POST', headers, body: JSON.stringify(body),
@@ -239,6 +245,7 @@ export async function callLLM({
   temperature = 0.3,
   maxTokens = 4000,
   jsonSchema = null,
+  jsonMode = true,
   timeoutMs = 55000,
 }) {
   const order = envList('LLM_PROVIDER_ORDER', DEFAULT_ORDER);
@@ -263,7 +270,7 @@ export async function callLLM({
       for (let retry = 0; retry <= maxRetries; retry++) {
         try {
           const content = await PROVIDER_FNS[provider]({
-            model, system, user, temperature, maxTokens, jsonSchema, timeoutMs,
+            model, system, user, temperature, maxTokens, jsonSchema, jsonMode, timeoutMs,
           });
           attempts.push({ provider, model, ok: true, retry });
           return { content, provider, model, attempts };

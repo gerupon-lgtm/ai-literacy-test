@@ -169,9 +169,9 @@ export default async function handler(req, res) {
   const breakdownText = Object.entries(batchCounts)
     .map(([label, n]) => `${label}: ${n}問`).join(' / ') || `${thisBatchCount}問（カテゴリ任意）`;
 
-  // 重複回避用の既出問題文（先頭60字まで）
+  // 重複回避用の既出問題文（全文。多すぎる場合のみ末尾を制限）
   const avoidText = existingQuestions.length
-    ? `\n# 既に出題済み（重複・類似を避ける）\n${existingQuestions.map((q, i) => `${i + 1}. ${String(q).slice(0, 60)}`).join('\n')}`
+    ? `\n# 既に出題済みの問題（これらと内容・論点が重複/類似する問題は絶対に作らない）\n${existingQuestions.map((q, i) => `${i + 1}. ${String(q).slice(0, 120)}`).join('\n')}\n\n上記と同じ知識ポイントを問う問題は避け、必ず異なる観点・場面・論点の問題を作成してください。`
     : '';
 
   const categoryGuide = CATEGORY_DEFS.map((c) => `${c.id} ${c.label}`).join(' / ');
@@ -235,13 +235,40 @@ export default async function handler(req, res) {
 
   const rawQuestions = Array.isArray(parsed.questions) ? parsed.questions : [];
   const warnings = [];
-  const validQuestions = [];
+  const candidate = [];
   rawQuestions.forEach((q, i) => {
-    if (validateQuestion(q, i, warnings)) validQuestions.push(q);
+    if (validateQuestion(q, i, warnings)) candidate.push(q);
   });
 
-  if (validQuestions.length === 0) {
+  if (candidate.length === 0) {
     return res.status(502).json({ ok: false, code: 'AI_EMPTY_RESULT', message: 'このバッチで有効な設問を生成できませんでした。再試行してください。', warnings });
+  }
+
+  // 類似度フィルタ:
+  //  - 既出問題（existingQuestions）と似すぎるものを除外
+  //  - 同バッチ内の重複も除外
+  const SIMILARITY_THRESHOLD = 0.40; // 0..1。高いほど「似ている」。これ超で重複とみなす
+  const acceptedTexts = existingQuestions.map((t) => String(t));
+  const validQuestions = [];
+  let droppedSimilar = 0;
+  for (const q of candidate) {
+    const dup = acceptedTexts.find((prev) => questionSimilarity(prev, q.question) >= SIMILARITY_THRESHOLD);
+    if (dup) { droppedSimilar++; continue; }
+    validQuestions.push(q);
+    acceptedTexts.push(q.question);
+  }
+  if (droppedSimilar > 0) {
+    warnings.push(`類似のため${droppedSimilar}問を除外しました（重複回避）。`);
+  }
+
+  if (validQuestions.length === 0) {
+    // 全部が類似だった場合も、空で返すと進まないため再試行を促す
+    return res.status(200).json({
+      ok: true, questions: [], batchIndex, batchSize, totalBatches,
+      isLast: batchIndex >= totalBatches - 1, requestedCount: questionCount,
+      provider, model,
+      warnings: [...warnings, 'このバッチは既存問題と重複したため0問になりました。'],
+    });
   }
 
   const isLast = batchIndex >= totalBatches - 1;
@@ -258,6 +285,35 @@ export default async function handler(req, res) {
     model,
     warnings,
   });
+}
+
+// 2つの問題文の類似度（0..1）。
+// 文字bi-gram（2文字単位）の Jaccard 係数。日本語に有効で軽量。
+function questionSimilarity(a, b) {
+  const na = normalizeForSim(a);
+  const nb = normalizeForSim(b);
+  if (!na || !nb) return 0;
+  if (na === nb) return 1;
+  const ga = bigrams(na);
+  const gb = bigrams(nb);
+  if (ga.size === 0 || gb.size === 0) return 0;
+  let inter = 0;
+  for (const g of ga) if (gb.has(g)) inter++;
+  const union = ga.size + gb.size - inter;
+  return union === 0 ? 0 : inter / union;
+}
+
+function normalizeForSim(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[\s　、。，．・「」『』（）()【】\[\]！？!?]/g, '') // 記号・空白除去
+    .trim();
+}
+
+function bigrams(s) {
+  const set = new Set();
+  for (let i = 0; i < s.length - 1; i++) set.add(s.slice(i, i + 2));
+  return set;
 }
 
 // 全体のカテゴリ配分を [{categoryId,label,count}] で返す。

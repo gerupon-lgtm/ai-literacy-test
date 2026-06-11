@@ -148,6 +148,47 @@ export async function generateQuestionsChunked(opts) {
     }
   }
 
+  // 類似除外などで目標数に届かなかった場合、不足分を追加生成で補う。
+  const maxTopUpRounds = 3;
+  let topUpRound = 0;
+  while (all.length < questionCount && topUpRound < maxTopUpRounds) {
+    topUpRound++;
+    const need = questionCount - all.length;
+    try {
+      const data = await generateQuestionsBatch({
+        adminToken, instruction, settings, currentQuestionSet,
+        batchSize: Math.min(batchSize, need),
+        batchIndex: 0,           // 補充は単発扱い
+        existingQuestions,        // これまでの全問題を渡して重複回避
+      }, { timeout: perBatchTimeout });
+
+      const got = (data.questions || []);
+      for (const q of got) {
+        if (all.length >= questionCount) break;
+        all.push(q);
+        existingQuestions.push(q.question);
+      }
+      if (Array.isArray(data.warnings)) allWarnings.push(...data.warnings);
+      lastProvider = data.provider || lastProvider;
+      lastModel = data.model || lastModel;
+
+      if (typeof onProgress === 'function') {
+        onProgress({
+          batchIndex: totalBatches, totalBatches, collected: all.length,
+          provider: data.provider, model: data.model, topUp: true,
+        });
+      }
+      // このラウンドで1問も増えなければ打ち切り（これ以上は重複ばかり）
+      if (got.length === 0) break;
+    } catch {
+      break; // 補充失敗は致命的でないので、取れた分で確定
+    }
+  }
+
+  if (all.length < questionCount) {
+    allWarnings.push(`目標 ${questionCount} 問に対し ${all.length} 問になりました（重複回避のため）。`);
+  }
+
   // ID を通し番号で再採番
   all.forEach((q, i) => { q.id = `Q${String(i + 1).padStart(3, '0')}`; });
 
