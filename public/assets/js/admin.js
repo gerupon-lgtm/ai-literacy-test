@@ -46,6 +46,7 @@ function bindEvents() {
   $('admin-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') onLogin(); });
   $('btn-logout').addEventListener('click', onLogout);
   $('btn-recalc').addEventListener('click', recalcDistribution);
+  $('btn-save-settings').addEventListener('click', onSaveSettings);
   $('btn-reset-dist').addEventListener('click', () => { buildDistRowsFromSet(); renderDistTable(); recalcDistribution(); });
   $('set-count').addEventListener('change', recalcDistribution);
   $('btn-generate').addEventListener('click', onGenerate);
@@ -446,6 +447,60 @@ function onDiscard() {
   $('preview-panel').classList.add('hidden');
   $('preview-questions').innerHTML = '';
   showToast('生成案を破棄しました。');
+}
+
+// 現在の設問セットに、編集した出題数・合格ライン・カテゴリ配分を適用して書き出す。
+// AI生成をせずに「配分や出題数だけ変更」したいときに使う。
+function onSaveSettings() {
+  if (!questionSet || !questionSet.questions || !questionSet.questions.length) {
+    setAlert('save-alert', 'error', '現在の設問セットが読み込まれていません。');
+    return;
+  }
+
+  const count = parseInt($('set-count').value, 10) || 20;
+  const pass = parseInt($('set-pass').value, 10) || 70;
+  const difficulty = $('set-difficulty').value;
+  const distribution = distRows.map((r) => ({
+    categoryId: r.categoryId, weight: r.weight, priority: r.priority,
+  }));
+
+  const available = questionSet.questions.length;
+  // 出題数が在庫を超えていないかチェック
+  if (count > available) {
+    setAlert('save-alert', 'error',
+      `出題数 ${count} 問に対し、現在の設問は ${available} 問しかありません。`
+      + `出題数を ${available} 以下にするか、設問を追加してください。`);
+    return;
+  }
+
+  // 在庫が出題数より多ければランダム出題が自然なのでON（既存値は尊重しつつ）
+  const moreThanNeeded = available > count;
+  const prevRandomQ = questionSet.settings && questionSet.settings.randomizeQuestions;
+  const randomizeQuestions = moreThanNeeded ? true : (prevRandomQ ?? false);
+
+  const out = {
+    ...questionSet,
+    updatedAt: new Date().toISOString(),
+    settings: {
+      ...(questionSet.settings || {}),
+      questionCount: count,
+      passingScore: pass,
+      difficulty,
+      randomizeQuestions,
+      randomizeChoices: (questionSet.settings && questionSet.settings.randomizeChoices) ?? true,
+      categoryDistributionMode: 'weighted',
+      categoryDistribution: distribution,
+    },
+  };
+  // 表示用に内部状態も更新（再書き出し時に最新が反映されるよう）
+  questionSet = out;
+  fillCurrentSet();
+
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+  downloadBlob(blob, 'current-question-set.json');
+  setAlert('save-alert', 'info',
+    `設定を反映した current-question-set.json を書き出しました（出題数 ${count}、配分${moreThanNeeded ? '・ランダム出題' : ''}）。`
+    + `<br>GitHubの <code>public/data/current-question-set.json</code> に上書きコミットすると本番反映されます。`);
 }
 
 // ---------- ユーティリティ ----------

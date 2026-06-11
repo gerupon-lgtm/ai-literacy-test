@@ -132,6 +132,15 @@
             <button id="btn-recalc" class="btn btn-ghost" type="button">配分を再計算</button>
             <button id="btn-reset-dist" class="btn btn-ghost" type="button">初期配分に戻す</button>
           </div>
+          <div class="alert alert-info" style="margin-top:14px">
+            出題数・合格ライン・カテゴリ配分の変更は、下のボタンで書き出して
+            GitHubにコミットするまで本番に反映されません。
+            <span class="muted">（AI生成をせず、配分だけ変えたいときはこちら）</span>
+          </div>
+          <div id="save-alert"></div>
+          <div class="btn-row">
+            <button id="btn-save-settings" class="btn btn-primary" type="button">設定を反映して current-question-set.json を書き出す</button>
+          </div>
         </div>
 
         <!-- 変更指示 → 生成 -->
