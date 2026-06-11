@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <title>管理者モード｜AIリテラシー検定</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#042320" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v3M12 18v3M3 12h3M18 12h3"/><circle cx="12" cy="12" r="5"/><path d="M12 12l3-2.5"/>
+        </svg>
+      </span>
+      <span class="brand-text">
+        <span class="name">AIリテラシー検定</span>
+        <span class="sub">Admin Console</span>
+      </span>
+    </header>
+
+    <main id="main">
+      <!-- S-004 ログイン -->
+      <section id="admin-login" class="screen">
+        <div class="panel">
+          <p class="eyebrow">Administrator</p>
+          <h1 style="font-size:1.5rem;margin-bottom:8px">管理者ログイン</h1>
+          <p class="muted" style="margin-bottom:20px;font-size:.9rem">
+            設問の生成指示、難易度、カテゴリ配分を設定します。パスワードはサーバー側で照合されます。
+          </p>
+          <div id="login-alert"></div>
+          <div class="field">
+            <label for="admin-pass">管理者パスワード</label>
+            <input id="admin-pass" class="input" type="password" autocomplete="current-password" placeholder="••••••••">
+          </div>
+          <div class="btn-row">
+            <button id="btn-login" class="btn btn-primary" type="button">ログイン</button>
+            <a class="btn btn-ghost" href="index.html">検定トップへ</a>
+          </div>
+          <div class="alert alert-info" style="margin-top:18px">
+            APIを未設定（<code>config.js</code> の <code>apiBase</code> が空）の場合は、ローカル確認用モードで動作します。
+            設問生成は実行されず、配分計算とJSON出力のみ利用できます。
+          </div>
+        </div>
+      </section>
+
+      <!-- S-005 ダッシュボード -->
+      <section id="admin-dash" class="screen hidden">
+        <!-- 現在の設問セット -->
+        <div class="panel">
+          <h2 class="section-title">現在の設問セット</h2>
+          <div class="stat-strip" style="grid-template-columns:repeat(2,1fr)">
+            <div class="cell"><div class="k">Set ID</div><div class="v" id="d-setid" style="font-size:.9rem;word-break:break-all">—</div></div>
+            <div class="cell"><div class="k">Version</div><div class="v" id="d-version" style="font-size:1.1rem">—</div></div>
+          </div>
+          <table class="cat-table" style="margin-top:14px">
+            <tbody>
+              <tr><th scope="row">更新日</th><td id="d-updated" class="num">—</td></tr>
+              <tr><th scope="row">ロック状態</th><td id="d-locked" class="num">—</td></tr>
+              <tr><th scope="row">出題数</th><td id="d-count" class="num">—</td></tr>
+              <tr><th scope="row">合格ライン</th><td id="d-pass" class="num">—</td></tr>
+              <tr><th scope="row">設問数(在庫)</th><td id="d-stock" class="num">—</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 基本設定 -->
+        <div class="panel">
+          <h2 class="section-title">出題設定</h2>
+          <div class="field">
+            <label for="set-count">出題数</label>
+            <select id="set-count" class="select">
+              <option value="10">10問</option>
+              <option value="20" selected>20問</option>
+              <option value="30">30問</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="set-difficulty">難易度</label>
+            <select id="set-difficulty" class="select">
+              <option value="basic">basic（初級）</option>
+              <option value="standard" selected>standard（標準）</option>
+              <option value="advanced">advanced（上級）</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="set-pass">合格ライン（%）</label>
+            <input id="set-pass" class="input" type="number" min="0" max="100" value="70">
+          </div>
+        </div>
+
+        <!-- S-007 カテゴリ配分 -->
+        <div class="panel">
+          <h2 class="section-title">カテゴリ別出題割合</h2>
+          <p class="muted" style="font-size:.84rem;margin-bottom:12px">
+            重み（weight）と優先度（priority）を設定します。優先度は数値が小さいほど優先。
+            合計が出題数と一致しない場合は、優先度に基づいて自動補正されます。
+          </p>
+          <table class="dist-table">
+            <thead>
+              <tr><th>カテゴリ</th><th>重み</th><th>優先度</th><th>配分</th></tr>
+            </thead>
+            <tbody id="dist-body"></tbody>
+            <tfoot>
+              <tr>
+                <th>合計</th>
+                <td id="dist-weight-sum" class="dist-preview">—</td>
+                <td></td>
+                <td id="dist-count-sum" class="dist-preview">—</td>
+              </tr>
+            </tfoot>
+          </table>
+          <div id="dist-alert"></div>
+          <div class="btn-row" style="margin-top:12px">
+            <button id="btn-recalc" class="btn btn-ghost" type="button">配分を再計算</button>
+            <button id="btn-reset-dist" class="btn btn-ghost" type="button">初期配分に戻す</button>
+          </div>
+        </div>
+
+        <!-- 変更指示 → 生成 -->
+        <div class="panel">
+          <h2 class="section-title">設問生成指示</h2>
+          <div class="field">
+            <label for="instruction">変更指示（自然文）</label>
+            <textarea id="instruction" class="textarea" maxlength="600"
+              placeholder="例）セキュリティと情報管理を多めに、初心者向けに20問作成してください。最新トレンドはAIエージェントの権限管理を含めてください。"></textarea>
+            <div class="hint"><span id="instr-count">0</span> / 600 文字　／　空欄のままでも、上の例のような標準的な指示で生成します。</div>
+          </div>
+          <div id="gen-alert"></div>
+          <div class="btn-row">
+            <button id="btn-generate" class="btn btn-primary" type="button">設問案を生成</button>
+            <button id="btn-logout" class="btn btn-ghost" type="button">ログアウト</button>
+          </div>
+        </div>
+
+        <!-- S-006 プレビュー -->
+        <div class="panel hidden" id="preview-panel">
+          <h2 class="section-title">生成された設問案</h2>
+          <div class="alert alert-warn">
+            これはAIによる生成案です。内容・正解・解説を必ずレビューしてから採用してください。
+          </div>
+          <div id="preview-meta" class="muted" style="font-size:.84rem;margin-bottom:12px"></div>
+          <div id="preview-questions"></div>
+          <div class="btn-row" style="margin-top:16px">
+            <button id="btn-adopt" class="btn btn-primary" type="button">この内容でJSONをダウンロード</button>
+            <button id="btn-discard" class="btn btn-ghost" type="button">破棄</button>
+          </div>
+          <div class="alert alert-info" style="margin-top:14px">
+            初期版では、ダウンロードした <code>current-question-set.json</code> を
+            GitHubリポジトリの <code>public/data/</code> に上書きコミットすると本番反映されます。
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>管理者操作ログは保存されません。設問の本番反映はGitHubへのコミットで行われます。</p>
+    </footer>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="assets/js/config.js"></script>
+  <script type="module" src="assets/js/admin.js"></script>
+</body>
+</html>
