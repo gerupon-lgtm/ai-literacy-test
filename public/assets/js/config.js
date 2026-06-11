@@ -10,5 +10,5 @@
 // 結果コメントは固定文面のフォールバックになります（検定本体は完全に動きます）。
 // =========================================================
 window.AILIT_CONFIG = {
-  apiBase: '',
+  apiBase: 'https://ai-literacy-test-ten.vercel.app',
 };
