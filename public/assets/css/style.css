@@ -200,7 +200,7 @@ button { font-family: inherit; }
   border-color: var(--line);
   color: var(--text-300);
 }
-.btn-ghost:hover { background: rgba(18,138,130,0.08); color: var(--text-100); }
+.btn-ghost:hover { background: rgba(63,81,181,0.08); color: var(--text-100); }
 
 .btn:disabled {
   opacity: .42;
@@ -427,10 +427,10 @@ button { font-family: inherit; }
   background: radial-gradient(circle at 50% 35%, #ffffff, var(--panel-2));
   border: 2px solid var(--teal-400);
   color: var(--teal-400);
-  box-shadow: 0 0 0 6px rgba(18,138,130,0.10), var(--shadow);
+  box-shadow: 0 0 0 6px rgba(63,81,181,0.10), var(--shadow);
 }
 .rank-badge[data-rank="C"] { border-color: var(--amber-400); color: var(--amber-400); box-shadow: 0 0 0 6px rgba(224,168,58,0.08), var(--shadow);}
-.rank-badge[data-rank="D"] { border-color: var(--coral-400); color: var(--coral-300); box-shadow: 0 0 0 6px rgba(226,104,91,0.08), var(--shadow);}
+.rank-badge[data-rank="D"] { border-color: var(--coral-400); color: var(--coral-400); box-shadow: 0 0 0 6px rgba(226,104,91,0.08), var(--shadow);}
 
 .score-line {
   font-family: var(--font-mono);
@@ -564,7 +564,7 @@ button { font-family: inherit; }
   font-family: var(--font-mono);
   font-size: 0.68rem;
   letter-spacing: 0.08em;
-  color: var(--coral-300);
+  color: #a8392c;
   margin-bottom: 6px;
 }
 .review-item .rexp {
@@ -657,9 +657,9 @@ button { font-family: inherit; }
   margin: 12px 0;
   line-height: 1.6;
 }
-.alert-info { background: rgba(63,81,181,0.10); border: 1px solid rgba(63,81,181,0.30); color: var(--teal-200); }
-.alert-warn { background: rgba(224,168,58,0.1); border: 1px solid rgba(224,168,58,0.32); color: #f0c46e; }
-.alert-error { background: rgba(226,104,91,0.1); border: 1px solid rgba(226,104,91,0.34); color: var(--coral-300); }
+.alert-info { background: rgba(63,81,181,0.10); border: 1px solid rgba(63,81,181,0.30); color: #2a3578; }
+.alert-warn { background: rgba(224,168,58,0.14); border: 1px solid rgba(224,168,58,0.40); color: #8a5a0a; }
+.alert-error { background: rgba(226,104,91,0.12); border: 1px solid rgba(226,104,91,0.40); color: #a8392c; }
 
 /* 管理者プレビューの設問 */
 .preview-q {
