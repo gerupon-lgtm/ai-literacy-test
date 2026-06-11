@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="企業内で生成AIを安全に使うための理解度を確認・較正するセルフチェック検定。">
+  <title>AIリテラシー検定</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#042320" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3v3M12 18v3M3 12h3M18 12h3"/>
+          <circle cx="12" cy="12" r="5"/>
+          <path d="M12 12l3-2.5"/>
+        </svg>
+      </span>
+      <span class="brand-text">
+        <span class="name">AIリテラシー検定</span>
+        <span class="sub">Literacy Calibration</span>
+      </span>
+    </header>
+
+    <main id="main">
+      <!-- ========== S-001 トップ画面 ========== -->
+      <section id="screen-top" class="screen">
+        <div class="panel hero">
+          <p class="eyebrow">Self Check</p>
+          <h1>あなたのAIリテラシーを較正する</h1>
+          <p class="lead">
+            企業内で生成AIを安全に使うための理解度を、選択式でセルフチェックします。
+            結果はカテゴリ別に可視化され、弱点と次の学習ポイントがわかります。
+          </p>
+
+          <div class="meta-grid">
+            <div class="meta-cell">
+              <span class="k">Questions</span>
+              <span class="v" id="meta-count">—<small>問</small></span>
+            </div>
+            <div class="meta-cell">
+              <span class="k">Time</span>
+              <span class="v" id="meta-time">—<small>分</small></span>
+            </div>
+            <div class="meta-cell">
+              <span class="k">Pass Line</span>
+              <span class="v" id="meta-pass">—<small>%</small></span>
+            </div>
+          </div>
+
+          <div class="notice">
+            <span class="ico" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+            </span>
+            <span>
+              <strong>入力時の注意。</strong>
+              この検定は理解度チェックです。氏名・顧客情報・社外秘・APIキー・パスワードなどの
+              個人情報や機密情報は入力しないでください。
+            </span>
+          </div>
+
+          <div class="btn-row">
+            <button id="btn-start" class="btn btn-primary" type="button" disabled>
+              検定を開始する
+            </button>
+          </div>
+          <a class="admin-link" href="admin.html">管理者モード →</a>
+        </div>
+      </section>
+
+      <!-- ========== S-002 回答画面 ========== -->
+      <section id="screen-quiz" class="screen hidden">
+        <div class="panel">
+          <div class="progress-wrap" aria-hidden="false">
+            <div class="progress-head">
+              <span class="progress-count">
+                <b id="q-current">1</b> <span class="muted">/</span> <span id="q-total">20</span>
+              </span>
+              <span class="progress-cat" id="q-progress-cat"></span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" id="q-progress-fill"></div>
+            </div>
+          </div>
+
+          <span class="q-category" id="q-category-tag"></span>
+          <p class="q-text" id="q-text"></p>
+          <p class="q-type-hint hidden" id="q-multi-hint">※あてはまるものをすべて選んでください（複数選択）</p>
+
+          <ul class="choice-list" id="q-choices" role="group" aria-label="選択肢"></ul>
+
+          <div class="q-nav">
+            <button id="btn-prev" class="btn btn-ghost" type="button">← 戻る</button>
+            <button id="btn-next" class="btn btn-primary" type="button" disabled>次へ →</button>
+          </div>
+        </div>
+        <div class="center" style="margin-top:14px">
+          <button id="btn-abort" class="btn btn-ghost" type="button" style="font-size:.8rem;min-height:36px">中断してトップへ</button>
+        </div>
+      </section>
+
+      <!-- ========== S-003 結果画面 ========== -->
+      <section id="screen-result" class="screen hidden">
+        <div class="panel result-hero">
+          <p class="eyebrow">Result</p>
+          <div class="rank-badge" id="r-rank" data-rank="A">A</div>
+          <div class="score-line">
+            <div class="score-big"><span id="r-score">0</span><small>/100</small></div>
+          </div>
+          <p class="result-sub" id="r-rank-comment"></p>
+
+          <div class="stat-strip">
+            <div class="cell">
+              <div class="k">Correct</div>
+              <div class="v score-line"><span id="r-correct">0</span><small style="font-size:.9rem;color:var(--text-500)">/<span id="r-qtotal">0</span></small></div>
+            </div>
+            <div class="cell">
+              <div class="k">Deviation</div>
+              <div class="v score-line" id="r-deviation">0</div>
+            </div>
+            <div class="cell">
+              <div class="k">Pass</div>
+              <div class="v" id="r-passmark">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2 class="section-title">カテゴリ別理解度</h2>
+          <div class="chart-wrap">
+            <canvas id="radar" width="440" height="440" role="img" aria-label="カテゴリ別理解度のレーダーチャート"></canvas>
+          </div>
+          <table class="cat-table" id="cat-table">
+            <caption class="sr-only">カテゴリ別の正答率</caption>
+            <thead>
+              <tr>
+                <th scope="col">カテゴリ</th>
+                <th scope="col" class="hide-sm">正答</th>
+                <th scope="col">理解度</th>
+                <th scope="col" class="num">率</th>
+              </tr>
+            </thead>
+            <tbody id="cat-table-body"></tbody>
+          </table>
+        </div>
+
+        <div class="panel">
+          <h2 class="section-title">理解度コメント</h2>
+          <div class="ai-comment loading" id="ai-comment" aria-live="polite">
+            <span class="label">AI Feedback</span>
+            <span id="ai-comment-text"><span class="spin"></span> コメントを生成しています…</span>
+          </div>
+        </div>
+
+        <div class="panel" id="review-panel">
+          <h2 class="section-title">復習ポイント</h2>
+          <ul class="review-list" id="review-list"></ul>
+        </div>
+
+        <div class="panel">
+          <h2 class="section-title">結果の保存・共有</h2>
+          <div class="btn-row">
+            <button id="btn-copy" class="btn" type="button">結果をコピー</button>
+            <button id="btn-csv" class="btn" type="button">CSV保存</button>
+            <button id="btn-png" class="btn" type="button">チャート画像保存</button>
+            <button id="btn-share" class="btn btn-primary" type="button">メールで共有</button>
+          </div>
+          <p class="share-hint" id="share-hint">
+            メール共有は、対応環境では共有シートからファイルごと送れます。
+            非対応環境では結果ファイルを保存し、メール作成画面が開くので手動で添付してください。
+          </p>
+          <div class="btn-row" style="margin-top:18px">
+            <button id="btn-retry" class="btn btn-ghost" type="button">もう一度受験する</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>企業内AIリテラシー教育向けセルフチェック。採点・正誤判定はブラウザ内の固定ロジックで行い、個人情報をAIへ送信しません。</p>
+    </footer>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <!-- 設定（VercelのURLをここで設定） -->
+  <script src="assets/js/config.js"></script>
+  <!-- Chart.js (レーダーチャート) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <!-- アプリJS (ESモジュール) -->
+  <script type="module" src="assets/js/app.js"></script>
+</body>
+</html>
