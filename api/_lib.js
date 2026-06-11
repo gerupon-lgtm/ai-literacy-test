@@ -120,57 +120,27 @@ export function verifyAdminToken(token) {
 }
 
 // ---------------------------------------------------------
-// OpenRouter 呼び出し
+// LLM 呼び出し（複数プロバイダ・フォールバック対応）
+// 実体は _providers.js の callLLM。後方互換のため callOpenRouter 名を維持。
+// 旧シグネチャ（responseFormat）も受けるが、内部では jsonSchema を優先利用する。
 // ---------------------------------------------------------
-export async function callOpenRouter({ system, user, temperature = 0.2, maxTokens = 800, responseFormat = null }) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error('OPENROUTER_API_KEY is not configured');
-  const model = process.env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
+import { callLLM as _callLLM } from './_providers.js';
 
-  const messages = [];
-  if (system) messages.push({ role: 'system', content: system });
-  messages.push({ role: 'user', content: user });
-
-  const payload = {
-    model,
-    messages,
-    temperature,
-    max_tokens: maxTokens,
-  };
-  if (responseFormat) payload.response_format = responseFormat;
-
-  // タイムアウト制御（60 秒）
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 60000);
-
-  let response;
-  try {
-    response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': process.env.SITE_URL || '',
-        'X-Title': process.env.APP_NAME || 'AI Literacy Test',
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-  } finally {
-    clearTimeout(timer);
+export async function callOpenRouter({
+  system, user, temperature = 0.3, maxTokens = 4000,
+  responseFormat = null, jsonSchema = null, timeoutMs = 55000,
+}) {
+  // responseFormat に json_schema が入っていれば schema を取り出す
+  let schema = jsonSchema;
+  if (!schema && responseFormat && responseFormat.type === 'json_schema') {
+    schema = responseFormat.json_schema && responseFormat.json_schema.schema;
   }
-
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(`OpenRouter HTTP ${response.status}: ${text.slice(0, 500)}`);
-  }
-
-  const data = await response.json();
-  const content = data && data.choices && data.choices[0] && data.choices[0].message
-    && data.choices[0].message.content;
-  if (!content) throw new Error('OpenRouter returned empty content');
+  const { content } = await _callLLM({ system, user, temperature, maxTokens, jsonSchema: schema, timeoutMs });
   return content;
 }
+
+// 新しいコードはこちらを直接使うとプロバイダ情報も取れる
+export { _callLLM as callLLM };
 
 // ---------------------------------------------------------
 // システムプロンプト（設計書 §10）

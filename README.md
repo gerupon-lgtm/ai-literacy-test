@@ -116,11 +116,25 @@ GitHub リポジトリの **Settings → Pages** を開き、
 
 AIコメント生成・AI設問生成を使うときだけ必要です。
 
-### 4-1. OpenRouter の APIキーを取得
+### 4-1. LLMプロバイダのキーを用意（少なくとも1つ）
 
-1. https://openrouter.ai/ にサインアップ
-2. ダッシュボードで API Key を発行（`sk-or-...`）
-3. 使うモデル名を決める（例: `openai/gpt-4o-mini`、`anthropic/claude-3.5-haiku` など）
+本アプリは **OpenRouter / Gemini / Ollama** の3系統に対応し、設定した順に自動フォールバックします（あるプロバイダが落ちても次を試す）。基本は**クレジット不要の無料モデル**を使えます。
+
+**① OpenRouter（推奨・最優先）**
+1. https://openrouter.ai/ にサインアップ（クレジットカード不要で無料モデルが使えます）
+2. API Key を発行（`sk-or-...`）
+3. モデルは `openrouter/free` が便利です。これは「structured output対応の無料モデルを自動選択するルーター」で、特定モデルが消えても自動で別の無料モデルに切り替わります。
+
+**② Gemini（無料枠・フォールバック先）**
+1. https://aistudio.google.com/ で API キーを発行（無料、カード不要）
+2. モデルは `gemini-3-flash`（無料枠：10 RPM / 1日1,500回）が標準
+3. 注意: Geminiの**無料枠は入出力がモデル改善に使われる**規約です。本アプリはスコアと傾向しかAIに送らない設計なので問題ありませんが、念のため把握しておいてください。
+
+**③ Ollama（自宅サーバー・最終フォールバック）**
+- 自宅の Ollama（例 `https://ollama.gerupon.uk`）を使えます。Cloudflare Access の背後にある場合は、後述の Service Token を設定します。
+- モデルは日本語可の `qwen2.5:7b` などを想定。
+
+> **無料モデルの推奨**: response_format対応・日本語OKの無料モデルとして、OpenRouterの `openrouter/free` と `meta-llama/llama-4-maverick:free`、Geminiの `gemini-3-flash` / `gemini-2.5-flash-lite` が使えます。無料枠の内容は変わりやすいので、`openrouter/free`（自動選択ルーター）を先頭に置くのが最も安定します。
 
 ### 4-2. Vercel にデプロイ
 
@@ -131,22 +145,50 @@ AIコメント生成・AI設問生成を使うときだけ必要です。
 
 `api/` 配下が自動的に Functions として認識されます。デプロイ後、`https://<プロジェクト名>.vercel.app` が発行されます。
 
+> **実行時間の上限**: Vercelの関数はHobbyプランでHTTPリクエストあたり最大60秒、Proプランで最大300秒です。本アプリは**設問を5問ずつ分割生成**するので、Hobbyプランの60秒制限でも大量の設問を安全に作れます（1バッチが短時間で終わるため）。
+
 ### 4-3. 環境変数を設定（最重要）
 
-Vercel の **Settings → Environment Variables** で以下を登録します。
+Vercel の **Settings → Environment Variables** で登録します。**使うプロバイダの分だけ**設定すればOKです。
+
+**共通（必須）**
 
 | 変数名 | 必須 | 説明 | 例 |
 |---|---|---|---|
-| `OPENROUTER_API_KEY` | ✅ | OpenRouter のAPIキー | `sk-or-xxxxx` |
-| `OPENROUTER_MODEL` | ✅ | 使用モデル | `openai/gpt-4o-mini` |
 | `SITE_URL` | ✅ | GitHub Pages の公開URL（CORS許可元） | `https://yourname.github.io` |
-| `APP_NAME` | 任意 | OpenRouter 表示名 | `AI Literacy Test` |
 | `ADMIN_PASSWORD` | ✅(管理者機能) | 管理者ログイン用パスワード | 任意の強固な文字列 |
 | `ADMIN_TOKEN_SECRET` | ✅(管理者機能) | トークン署名用シークレット | 長いランダム文字列 |
+| `APP_NAME` | 任意 | OpenRouter 表示名 | `AI Literacy Test` |
+| `LLM_PROVIDER_ORDER` | 任意 | フォールバック順 | `openrouter,gemini,ollama`（既定値） |
 
-> `SITE_URL` は**スキームを含むドメインのみ**（末尾のパスやスラッシュなし）にしてください。例: `https://yourname.github.io`。CORS の許可Origin判定に使われます。
+**OpenRouter を使う場合**
 
-設定後、**Deployments → 最新 → Redeploy** で再デプロイすると環境変数が反映されます。
+| 変数名 | 説明 | 例 |
+|---|---|---|
+| `OPENROUTER_API_KEY` | APIキー | `sk-or-v1-...` |
+| `OPENROUTER_MODEL` | モデル（カンマ区切りで複数可） | `openrouter/free,meta-llama/llama-4-maverick:free` |
+
+**Gemini を使う場合**
+
+| 変数名 | 説明 | 例 |
+|---|---|---|
+| `GEMINI_API_KEY` | APIキー | `AIza...` |
+| `GEMINI_MODEL` | モデル（カンマ区切りで複数可） | `gemini-3-flash,gemini-2.5-flash-lite` |
+
+**Ollama（自宅サーバー）を使う場合**
+
+| 変数名 | 説明 | 例 |
+|---|---|---|
+| `OLLAMA_BASE_URL` | OllamaのURL | `https://ollama.gerupon.uk` |
+| `OLLAMA_MODEL` | モデル（カンマ区切りで複数可） | `qwen2.5:7b` |
+| `CF_ACCESS_CLIENT_ID` | Cloudflare Service Token のID（認証背後の場合） | `xxxx.access` |
+| `CF_ACCESS_CLIENT_SECRET` | 同 Secret | （長い文字列） |
+
+> **Cloudflare Access 背後のOllamaについて**: `ollama.gerupon.uk` がメール認証（Cloudflare Access）の背後にある場合、ブラウザやサーバーからの直接アクセスはログイン画面にリダイレクトされて失敗します。これを通過するには **Service Token** を使います。Cloudflare Zero Trust → Access → **Service Auth → Create Service Token** で発行し、対象アプリのポリシーに「Service Auth」を許可するルールを追加してください。発行された Client ID / Secret を上記環境変数に設定すれば、Vercelの関数が認証を通過してOllamaを呼べます。
+
+> `SITE_URL` は**スキームを含むドメインのみ**（末尾のパスやスラッシュなし）。例: `https://yourname.github.io`。CORS の許可Origin判定に使われます。
+
+設定後、**Deployments → 最新 → Redeploy** で再デプロイすると環境変数が反映されます（**これを忘れると反映されません**）。
 
 ### 4-4. フロントから Vercel を参照させる
 
@@ -222,7 +264,11 @@ window.AILIT_CONFIG = {
 | AIコメントが定型文のまま | `config.js` の `apiBase` が空、または Vercel 未デプロイ。手順4を確認。 |
 | ブラウザに CORS エラー | Vercel の `SITE_URL` が GitHub Pages のURLと不一致。スキーム込み・末尾スラッシュなしで設定。 |
 | 管理者ログインで500 | `ADMIN_PASSWORD` / `ADMIN_TOKEN_SECRET` が未設定。Vercel環境変数を設定し再デプロイ。 |
-| 設問生成が502 | OpenRouter のキー・モデル名・残高を確認。 |
+| 設問生成が502（AI設問生成に失敗） | 全プロバイダで失敗。Vercelログの`detail`を確認。各キー・モデル名・残高、`LLM_PROVIDER_ORDER`を点検。 |
+| 「AI応答を解析できませんでした」 | モデルがJSON以外を返した。`openrouter/free` など structured output 対応モデルに変更。分割生成で1バッチを小さく保つと改善。 |
+| 設問生成が途中で止まる/タイムアウト | 1バッチは数問なので通常は短時間で完了。特定バッチだけ失敗する場合は自動で1回再試行。繰り返す場合はプロバイダを変更。 |
+| Ollamaだけ失敗（HTMLが返る） | Cloudflare Access に阻まれている。Service Token（`CF_ACCESS_CLIENT_ID/SECRET`）を設定し、対象アプリにService Authポリシーを追加。 |
+| Geminiが429 | 無料枠のレート上限（10 RPM / 1日1,500回）。少し待つか、`LLM_PROVIDER_ORDER`でOpenRouterを先に。 |
 | レーダーチャートが出ない | Chart.js CDN への通信がブロックされていないか確認。 |
 
 ---

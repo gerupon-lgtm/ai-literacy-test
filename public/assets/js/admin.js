@@ -169,7 +169,7 @@ function recalcDistribution() {
 // ---------- 設問生成 ----------
 async function onGenerate() {
   const instruction = $('instruction').value.trim();
-  if (!instruction) { setAlert('gen-alert', 'error', '変更指示を入力してください。'); return; }
+  // 空欄でもOK（サーバ側で既定の生成指示を採用）
 
   if (!isApiConfigured()) {
     setAlert('gen-alert', 'warn',
@@ -178,18 +178,80 @@ async function onGenerate() {
   }
 
   const payload = buildGeneratePayload(instruction);
-  setAlert('gen-alert', 'info', '<span class="spin"></span> 設問案を生成しています（最大60秒）…');
+  const count = payload.settings.questionCount;
+  const batchSize = 5;
+  const totalBatches = Math.ceil(count / batchSize);
+
+  setAlert('gen-alert', 'info',
+    `<span class="spin"></span> 設問案を分割生成しています… 0/${totalBatches} バッチ（0/${count} 問）`);
   $('btn-generate').disabled = true;
+
   try {
-    const data = await generateQuestions(payload);
-    draftSet = data.questionSetDraft;
+    const result = await generateQuestions({
+      adminToken,
+      instruction,  // 空文字ならサーバが既定指示を採用
+      settings: payload.settings,
+      currentQuestionSet: payload.currentQuestionSet,
+      batchSize,
+      onProgress: (info) => {
+        const prov = info.provider ? `（${info.provider} / ${info.model}）` : '';
+        setAlert('gen-alert', 'info',
+          `<span class="spin"></span> 生成中… ${info.batchIndex + 1}/${info.totalBatches} バッチ` +
+          `（${info.collected}/${count} 問）${prov}`);
+      },
+    });
+
+    // 結合結果から questionSetDraft を組み立てる
+    draftSet = buildDraftFromQuestions(result.questions, payload.settings, questionSet, result);
     clearAlert('gen-alert');
-    renderPreview(draftSet, data.warnings);
+    const provNote = result.provider ? `（${result.provider} / ${result.model}）` : '';
+    const warnNote = (result.warnings && result.warnings.length)
+      ? `<br><small>注意: ${result.warnings.slice(0, 3).map(escapeHtml).join(' / ')}</small>` : '';
+    setAlert('gen-alert', 'info', `生成が完了しました：${result.questions.length} 問 ${provNote}${warnNote}`);
+    renderPreview(draftSet, result.warnings);
   } catch (err) {
-    setAlert('gen-alert', 'error', err.message || '生成に失敗しました。');
+    // 途中まで取れていれば部分採用できるよう案内
+    const partial = err.partial && err.partial.length
+      ? `（${err.partial.length} 問まで生成済み。再試行するか、回数を減らして再実行してください）` : '';
+    setAlert('gen-alert', 'error', (err.message || '生成に失敗しました。') + partial);
+    if (err.partial && err.partial.length) {
+      draftSet = buildDraftFromQuestions(err.partial, payload.settings, questionSet, {});
+      renderPreview(draftSet, err.warnings || []);
+    }
   } finally {
     $('btn-generate').disabled = false;
   }
+}
+
+// 結合済み設問配列から questionSetDraft を構築
+function buildDraftFromQuestions(questions, settings, current, meta) {
+  const used = [];
+  const seen = new Set();
+  questions.forEach((q) => {
+    if (!seen.has(q.category)) { seen.add(q.category); }
+  });
+  // カテゴリメタは現行 categories を流用（無ければ設問から）
+  const categories = (current && current.categories) ||
+    [...seen].map((label, i) => ({ id: `C-${String(i + 1).padStart(3, '0')}`, name: label }));
+
+  return {
+    questionSetId: (current && current.questionSetId) || 'ai-generated-draft',
+    version: 'draft',
+    locked: false,
+    updatedAt: new Date().toISOString(),
+    generatedBy: meta && meta.provider ? `${meta.provider}/${meta.model}` : 'ai',
+    settings: {
+      questionCount: questions.length,
+      passingScore: settings.passingScore || 70,
+      difficulty: settings.difficulty || 'standard',
+      randomizeChoices: (current && current.settings && current.settings.randomizeChoices) ?? true,
+      randomizeQuestions: (current && current.settings && current.settings.randomizeQuestions) ?? false,
+      categoryDistributionMode: 'weighted',
+      categoryDistribution: settings.categoryDistribution || [],
+    },
+    categories,
+    questions,
+  };
 }
 
 function buildGeneratePayload(instruction) {

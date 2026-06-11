@@ -1,26 +1,68 @@
 // =========================================================
 // api/generate-questions.js
 // 管理者指示に基づき設問案 JSON を生成する（Vercel Function）。
+//
+// 【分割生成対応】
+//  Vercel の実行時間上限（Hobby:60s / Pro:300s）に収めるため、
+//  1リクエスト = 1バッチ（既定5問）だけ生成する。
+//  管理画面側が batchIndex を進めながら複数回呼び、結果を結合する。
+//
+//  リクエスト body:
+//    adminToken            管理者トークン（必須）
+//    instruction           生成指示（空ならサーバ側で既定指示を使用）
+//    settings              { questionCount, difficulty, categoryDistribution }
+//    currentQuestionSet    現行セット（メタ引き継ぎ用・任意）
+//    batchSize             1バッチの問題数（任意・既定5・最大10）
+//    batchIndex            何バッチ目か（0始まり・任意・既定0）
+//    existingQuestions     既出の問題文配列（重複回避用・任意）
+//
+//  レスポンス:
+//    ok, questions[], batchIndex, batchSize, totalBatches,
+//    isLast, provider, model, warnings[]
+//
 // AI 生成結果はスキーマ検証し、正解インデックスの範囲も検証する。
 // =========================================================
 import {
   applyCors, handlePreflight, readJsonBody,
-  verifyAdminToken, callOpenRouter, GENERATE_SYSTEM_PROMPT,
+  verifyAdminToken, callLLM, GENERATE_SYSTEM_PROMPT,
   CATEGORY_DEFS, CATEGORY_IDS,
 } from './_lib.js';
+import { extractJsonLoose } from './_providers.js';
 
 const VALID_DIFFICULTY = ['basic', 'standard', 'advanced'];
+const DEFAULT_BATCH_SIZE = 5;
+const MAX_BATCH_SIZE = 10;
 
-// AI 応答から JSON 部分を取り出す（```json フェンス等を許容）
-function extractJson(text) {
-  if (!text) throw new Error('empty');
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const raw = fenced ? fenced[1] : text;
-  const start = raw.indexOf('{');
-  const end = raw.lastIndexOf('}');
-  if (start === -1 || end === -1) throw new Error('no json object');
-  return JSON.parse(raw.slice(start, end + 1));
-}
+// 空欄時に採用する既定生成指示（管理画面の例示と同じ意図）
+const DEFAULT_INSTRUCTION = [
+  '企業内で生成AIを安全かつ効果的に活用するための、実務的なAIリテラシー設問を作成してください。',
+  '各カテゴリの配分に従い、難易度のバランスを取りつつ、現場で迷いやすい判断を問う良問にしてください。',
+].join('\n');
+
+// 設問JSONスキーマ（OpenRouter json_schema / Gemini responseSchema 用）
+const QUESTION_SCHEMA = {
+  type: 'object',
+  properties: {
+    questions: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          category: { type: 'string' },
+          difficulty: { type: 'string' },
+          type: { type: 'string' },
+          question: { type: 'string' },
+          choices: { type: 'array', items: { type: 'string' } },
+          answer: { type: 'array', items: { type: 'integer' } },
+          explanation: { type: 'string' },
+          tags: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['category', 'type', 'question', 'choices', 'answer'],
+      },
+    },
+  },
+  required: ['questions'],
+};
 
 // 設問 1 件の検証。問題があれば warnings に push し、致命的なら false を返す。
 function validateQuestion(q, idx, warnings) {
@@ -33,7 +75,6 @@ function validateQuestion(q, idx, warnings) {
   const type = q.type === 'multiple' ? 'multiple' : 'single';
   q.type = type;
 
-  // answer を配列に正規化
   let answer = q.answer;
   if (typeof answer === 'number') answer = [answer];
   if (!Array.isArray(answer) || answer.length === 0) { warnings.push(`${where}: answer がありません。`); return false; }
@@ -45,17 +86,32 @@ function validateQuestion(q, idx, warnings) {
   }
   q.answer = answer;
 
-  // カテゴリ名の検証（名称 or ID を許容し、名称へ正規化）
   const byId = CATEGORY_DEFS.find((c) => c.id === q.category);
   const byName = CATEGORY_DEFS.find((c) => c.label === q.category);
   if (byId) q.category = byId.label;
-  else if (!byName) { warnings.push(`${where}: 未知のカテゴリ「${q.category}」。`); /* 致命ではない */ }
+  else if (!byName) { warnings.push(`${where}: 未知のカテゴリ「${q.category}」。`); }
 
   if (!VALID_DIFFICULTY.includes(q.difficulty)) q.difficulty = 'standard';
   if (typeof q.explanation !== 'string') q.explanation = '';
   if (!Array.isArray(q.tags)) q.tags = [];
-  if (typeof q.id !== 'string' || !q.id) q.id = `Q${String(idx + 1).padStart(3, '0')}`;
   return true;
+}
+
+// このバッチで作るべきカテゴリ内訳を決める。
+// 全体配分（count）を batchIndex に基づき切り出す。
+function planBatchCategories(allocation, batchSize, batchIndex) {
+  // allocation: [{categoryId, label, count}]
+  // フラットなカテゴリ列を作って batch で切り出す
+  const flat = [];
+  for (const a of allocation) {
+    for (let i = 0; i < a.count; i++) flat.push(a.label);
+  }
+  const start = batchSize * batchIndex;
+  const slice = flat.slice(start, start + batchSize);
+  // ラベル → 件数 に集計
+  const counts = {};
+  for (const label of slice) counts[label] = (counts[label] || 0) + 1;
+  return { counts, totalInScope: flat.length };
 }
 
 export default async function handler(req, res) {
@@ -73,19 +129,17 @@ export default async function handler(req, res) {
     return res.status(400).json({ ok: false, code: 'BAD_JSON', message: 'リクエスト本文を解析できませんでした。' });
   }
 
-  // 認証
   if (!verifyAdminToken(body && body.adminToken)) {
     return res.status(401).json({ ok: false, code: 'UNAUTHORIZED', message: '管理者トークンが無効です。再ログインしてください。' });
   }
 
-  const instruction = (body && body.instruction) || '';
+  const instruction = (body && body.instruction && String(body.instruction).trim()) || DEFAULT_INSTRUCTION;
   const settings = (body && body.settings) || {};
   const questionCount = Number(settings.questionCount) || 20;
   if (questionCount < 1 || questionCount > 100) {
     return res.status(400).json({ ok: false, code: 'INVALID_COUNT', message: '出題数は1〜100で指定してください。' });
   }
 
-  // カテゴリ配分の検証（定義済みカテゴリのみ）
   const dist = Array.isArray(settings.categoryDistribution) ? settings.categoryDistribution : [];
   for (const d of dist) {
     if (!CATEGORY_IDS.includes(d.categoryId)) {
@@ -93,23 +147,49 @@ export default async function handler(req, res) {
     }
   }
 
-  // AI へ渡すユーザープロンプト（個人情報は一切含めない）
+  // バッチ設定
+  let batchSize = Number(body.batchSize) || DEFAULT_BATCH_SIZE;
+  batchSize = Math.max(1, Math.min(MAX_BATCH_SIZE, batchSize));
+  const batchIndex = Math.max(0, Number(body.batchIndex) || 0);
+  const totalBatches = Math.ceil(questionCount / batchSize);
+  const existingQuestions = Array.isArray(body.existingQuestions) ? body.existingQuestions.slice(0, 200) : [];
+
+  if (batchIndex >= totalBatches) {
+    return res.status(400).json({ ok: false, code: 'BATCH_OUT_OF_RANGE', message: 'バッチ番号が範囲外です。' });
+  }
+
+  // 全体のカテゴリ配分（count）を構築
+  const allocation = buildAllocation(questionCount, dist);
+  const { counts: batchCounts } = planBatchCategories(allocation, batchSize, batchIndex);
+  // このバッチで実際に作る問題数
+  const thisBatchCount = Object.values(batchCounts).reduce((s, n) => s + n, 0)
+    || Math.min(batchSize, questionCount - batchSize * batchIndex);
+
+  // カテゴリ内訳テキスト
+  const breakdownText = Object.entries(batchCounts)
+    .map(([label, n]) => `${label}: ${n}問`).join(' / ') || `${thisBatchCount}問（カテゴリ任意）`;
+
+  // 重複回避用の既出問題文（先頭60字まで）
+  const avoidText = existingQuestions.length
+    ? `\n# 既に出題済み（重複・類似を避ける）\n${existingQuestions.map((q, i) => `${i + 1}. ${String(q).slice(0, 60)}`).join('\n')}`
+    : '';
+
   const categoryGuide = CATEGORY_DEFS.map((c) => `${c.id} ${c.label}`).join(' / ');
   const userContent = [
     '次の条件で、企業内AIリテラシー検定の設問案を作成してください。',
     '',
-    `# 出題数\n${questionCount}問`,
+    `# このバッチで作る問題数\n${thisBatchCount}問（全${questionCount}問中 ${batchIndex + 1}/${totalBatches} バッチ目）`,
+    `# このバッチのカテゴリ内訳\n${breakdownText}`,
     `# 難易度\n${settings.difficulty || 'standard'}`,
-    `# カテゴリ一覧\n${categoryGuide}`,
-    `# カテゴリ配分（weight=問題数の目安, priority=小さいほど優先）\n${JSON.stringify(dist, null, 2)}`,
-    `# 管理者からの指示\n${instruction || '（特になし。バランス良く作成してください。）'}`,
+    `# カテゴリ一覧（参考）\n${categoryGuide}`,
+    `# 管理者からの指示\n${instruction}`,
+    avoidText,
     '',
     '# 出力形式（厳守。これ以外の文字を出力しない）',
     '次の JSON オブジェクトのみを出力してください:',
     '{',
     '  "questions": [',
     '    {',
-    '      "id": "Q001",',
     '      "category": "カテゴリ名（日本語ラベル）",',
     '      "difficulty": "basic|standard|advanced",',
     '      "type": "single|multiple",',
@@ -122,67 +202,94 @@ export default async function handler(req, res) {
     '  ]',
     '}',
     'answer は choices のインデックス（0始まり）の配列です。single は1個、multiple は2個以上にしてください。',
+    `必ず ${thisBatchCount} 問を作成してください。`,
   ].join('\n');
 
-  let aiText;
+  let aiText, provider, model;
   try {
-    aiText = await callOpenRouter({
+    const result = await callLLM({
       system: GENERATE_SYSTEM_PROMPT,
       user: userContent,
-      temperature: 0.4,
+      temperature: 0.5,
       maxTokens: 4000,
-      responseFormat: { type: 'json_object' },
+      jsonSchema: QUESTION_SCHEMA,
+      timeoutMs: 55000,
     });
+    aiText = result.content; provider = result.provider; model = result.model;
   } catch (err) {
-    console.error('generate-questions upstream error:', err);
-    return res.status(502).json({ ok: false, code: 'AI_UPSTREAM_ERROR', message: 'AI設問生成に失敗しました。時間をおいて再試行してください。' });
+    console.error('generate-questions upstream error:', err && err.message);
+    return res.status(502).json({
+      ok: false, code: 'AI_UPSTREAM_ERROR',
+      message: 'AI設問生成に失敗しました。全プロバイダで失敗しました。設定とログを確認してください。',
+      detail: String(err && err.message || err).slice(0, 500),
+    });
   }
 
   let parsed;
   try {
-    parsed = extractJson(aiText);
+    parsed = extractJsonLoose(aiText);
   } catch (err) {
-    console.error('generate-questions parse error:', err, aiText && aiText.slice(0, 300));
+    console.error('generate-questions parse error:', err && err.message, aiText && aiText.slice(0, 300));
     return res.status(502).json({ ok: false, code: 'AI_PARSE_ERROR', message: 'AI応答を解析できませんでした。再試行してください。' });
   }
 
   const rawQuestions = Array.isArray(parsed.questions) ? parsed.questions : [];
-  const warnings = ['AI生成内容のため、管理者レビュー後に採用してください。'];
+  const warnings = [];
   const validQuestions = [];
   rawQuestions.forEach((q, i) => {
     if (validateQuestion(q, i, warnings)) validQuestions.push(q);
   });
 
   if (validQuestions.length === 0) {
-    return res.status(502).json({ ok: false, code: 'AI_EMPTY_RESULT', message: '有効な設問を生成できませんでした。指示を変えて再試行してください。' });
-  }
-  if (validQuestions.length < questionCount) {
-    warnings.push(`要求${questionCount}問に対し、有効な設問は${validQuestions.length}問でした。`);
+    return res.status(502).json({ ok: false, code: 'AI_EMPTY_RESULT', message: 'このバッチで有効な設問を生成できませんでした。再試行してください。', warnings });
   }
 
-  // ID を振り直し（重複防止）
-  validQuestions.forEach((q, i) => { q.id = `Q${String(i + 1).padStart(3, '0')}`; });
+  const isLast = batchIndex >= totalBatches - 1;
 
-  // 現行セットのメタを引き継いだドラフトを構築
-  const current = (body && body.currentQuestionSet) || {};
-  const usedCategories = CATEGORY_DEFS.filter((c) => validQuestions.some((q) => q.category === c.label))
-    .map((c) => ({ id: c.id, name: c.label }));
-
-  const questionSetDraft = {
-    questionSetId: current.questionSetId || 'ai-generated-draft',
-    version: 'draft',
-    locked: false,
-    updatedAt: new Date().toISOString(),
-    settings: {
-      questionCount: validQuestions.length,
-      passingScore: (current.settings && current.settings.passingScore) || 70,
-      difficulty: settings.difficulty || 'standard',
-      categoryDistributionMode: 'weighted',
-      categoryDistribution: dist,
-    },
-    categories: usedCategories.length ? usedCategories : CATEGORY_DEFS.map((c) => ({ id: c.id, name: c.label })),
+  return res.status(200).json({
+    ok: true,
     questions: validQuestions,
-  };
+    batchIndex,
+    batchSize,
+    totalBatches,
+    isLast,
+    requestedCount: questionCount,
+    provider,
+    model,
+    warnings,
+  });
+}
 
-  return res.status(200).json({ ok: true, questionSetDraft, warnings });
+// 全体のカテゴリ配分を [{categoryId,label,count}] で返す。
+// weight 比率を questionCount に按分し、端数は優先度順に配る。
+function buildAllocation(questionCount, dist) {
+  const cats = CATEGORY_DEFS.map((c) => {
+    const d = dist.find((x) => x.categoryId === c.id);
+    return { categoryId: c.id, label: c.label, weight: d ? Number(d.weight) || 0 : 0, priority: d ? Number(d.priority) || 99 : 99 };
+  });
+  const totalWeight = cats.reduce((s, c) => s + c.weight, 0);
+
+  // 全weight0なら均等割り
+  if (totalWeight <= 0) {
+    const base = Math.floor(questionCount / cats.length);
+    let rem = questionCount - base * cats.length;
+    return cats.map((c) => {
+      const extra = rem > 0 ? 1 : 0; if (rem > 0) rem--;
+      return { categoryId: c.categoryId, label: c.label, count: base + extra };
+    });
+  }
+
+  // 比率按分（floor）
+  const withFloor = cats.map((c) => {
+    const exact = (c.weight / totalWeight) * questionCount;
+    return { ...c, exact, count: Math.floor(exact), frac: exact - Math.floor(exact) };
+  });
+  let assigned = withFloor.reduce((s, c) => s + c.count, 0);
+  let remainder = questionCount - assigned;
+
+  // 端数は frac 大きい順、同点なら priority 小さい順
+  const order = [...withFloor].sort((a, b) => (b.frac - a.frac) || (a.priority - b.priority));
+  for (let i = 0; i < order.length && remainder > 0; i++) { order[i].count++; remainder--; }
+
+  return withFloor.map((c) => ({ categoryId: c.categoryId, label: c.label, count: c.count }));
 }
