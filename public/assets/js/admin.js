@@ -5,6 +5,7 @@ import { resolveCategoryAllocation } from './scoring.js';
 import { downloadBlob } from './export.js';
 import { adminLogin, generateQuestions, listModels, isApiConfigured } from './apiClient.js';
 import { initPool } from './pool.js';
+import { CATEGORY_DEFS } from './categories.js';
 
 const QUESTION_SET_URL = 'data/current-question-set.json';
 
@@ -323,14 +324,41 @@ async function onGenerate() {
 
 // 結合済み設問配列から questionSetDraft を構築
 function buildDraftFromQuestions(questions, settings, current, meta) {
-  const used = [];
-  const seen = new Set();
-  questions.forEach((q) => {
-    if (!seen.has(q.category)) { seen.add(q.category); }
+  // 設問に実際に登場するカテゴリ（出現順）
+  const seen = [];
+  questions.forEach((q) => { if (!seen.includes(q.category)) seen.push(q.category); });
+
+  // categories メタ: 既知ラベルは定義の id を使い、未知ラベルは連番IDを振る
+  const knownByLabel = new Map(CATEGORY_DEFS.map((c) => [c.label, c]));
+  let extra = 0;
+  const categories = seen.map((label) => {
+    const def = knownByLabel.get(label);
+    if (def) return { id: def.id, name: def.label };
+    extra += 1;
+    return { id: `X-${String(extra).padStart(3, '0')}`, name: label };
   });
-  // カテゴリメタは現行 categories を流用（無ければ設問から）
-  const categories = (current && current.categories) ||
-    [...seen].map((label, i) => ({ id: `C-${String(i + 1).padStart(3, '0')}`, name: label }));
+  const labelToId = new Map(categories.map((c) => [c.name, c.id]));
+
+  // カテゴリ配分(weight)は「実際に生成された各カテゴリの設問数」を基準にする。
+  // これにより categoryDistribution・categories・questions.category が必ず整合する。
+  const catCount = {};
+  questions.forEach((q) => { catCount[q.category] = (catCount[q.category] || 0) + 1; });
+  const categoryDistribution = categories.map((c, idx) => ({
+    categoryId: c.id,
+    weight: catCount[c.name] || 0,
+    priority: idx + 1,
+  }));
+
+  // 検定での出題数は「管理者が設定した値」を尊重する（プール総数で上書きしない）。
+  // ただし在庫(questions.length)を超えないようにクランプ。
+  const requested = Number(settings && settings.questionCount) || questions.length;
+  const questionCount = Math.min(requested, questions.length);
+
+  // 在庫が出題数より多ければ、検定ごとにランダム抽出するのが自然なのでランダム出題をON。
+  const moreThanNeeded = questions.length > questionCount;
+  const randomizeQuestions = moreThanNeeded
+    ? true
+    : ((current && current.settings && current.settings.randomizeQuestions) ?? false);
 
   return {
     questionSetId: (current && current.questionSetId) || 'ai-generated-draft',
@@ -339,13 +367,13 @@ function buildDraftFromQuestions(questions, settings, current, meta) {
     updatedAt: new Date().toISOString(),
     generatedBy: meta && meta.provider ? `${meta.provider}/${meta.model}` : 'ai',
     settings: {
-      questionCount: questions.length,
+      questionCount,
       passingScore: settings.passingScore || 70,
       difficulty: settings.difficulty || 'standard',
       randomizeChoices: (current && current.settings && current.settings.randomizeChoices) ?? true,
-      randomizeQuestions: (current && current.settings && current.settings.randomizeQuestions) ?? false,
+      randomizeQuestions,
       categoryDistributionMode: 'weighted',
-      categoryDistribution: settings.categoryDistribution || [],
+      categoryDistribution,
     },
     categories,
     questions,

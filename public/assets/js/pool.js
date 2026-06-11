@@ -276,13 +276,24 @@ function exportSet() {
     return;
   }
 
-  // カテゴリ配分を採用設問から自動算出
+  // カテゴリ配分を採用設問から自動算出（未分類・独自カテゴリも漏らさず含める）
   const catCount = {};
-  selected.forEach((q) => { catCount[q.category] = (catCount[q.category] || 0) + 1; });
-  const usedCats = CATEGORY_DEFS.filter((c) => catCount[c.label]);
-  const categories = usedCats.map((c) => ({ id: c.id, name: c.label }));
-  const categoryDistribution = usedCats.map((c, idx) => ({
-    categoryId: c.id, weight: catCount[c.label], priority: idx + 1,
+  const catOrder = [];
+  selected.forEach((q) => {
+    if (!(q.category in catCount)) { catCount[q.category] = 0; catOrder.push(q.category); }
+    catCount[q.category]++;
+  });
+  // 既知ラベルは定義の id、未知は連番 id を振る
+  const knownByLabel = new Map(CATEGORY_DEFS.map((c) => [c.label, c]));
+  let extra = 0;
+  const categories = catOrder.map((label) => {
+    const def = knownByLabel.get(label);
+    if (def) return { id: def.id, name: def.label };
+    extra += 1;
+    return { id: `X-${String(extra).padStart(3, '0')}`, name: label };
+  });
+  const categoryDistribution = categories.map((c, idx) => ({
+    categoryId: c.id, weight: catCount[c.name], priority: idx + 1,
   }));
 
   const out = {
