@@ -136,22 +136,36 @@ export function resolveCategoryAllocation(questionCount, distributions, defaultD
 
   let diff = questionCount - allocated.reduce((sum, d) => sum + d.count, 0);
 
-  // 不足分は優先度が高い(数値が小さい)カテゴリから追加
-  while (diff > 0) {
-    allocated
-      .slice()
-      .sort((a, b) => a.priority - b.priority || b.weight - a.weight || b.fraction - a.fraction)[0]
-      .count++;
-    diff--;
+  // 不足分（端数）の配分:
+  //   fraction（按分の端数）が大きい順に1問ずつ配る（最大剰余法）。
+  //   fraction が同じカテゴリ間では priority が高い(数値が小さい)方を優先。
+  //   さらに同じなら weight が大きい方。各カテゴリへは最大1問ずつ。
+  if (diff > 0) {
+    const order = allocated.slice().sort((a, b) =>
+      (b.fraction - a.fraction) || (a.priority - b.priority) || (b.weight - a.weight));
+    let i = 0;
+    while (diff > 0 && order.length > 0) {
+      order[i % order.length].count++;
+      i++;
+      diff--;
+      // 全カテゴリに1周配ってもまだ余る場合は2周目に入る（稀。重みゼロ多数時など）
+    }
   }
-  // 超過分は優先度が低い(数値が大きい)カテゴリから削減
-  while (diff < 0) {
-    const target = allocated
+
+  // 超過分の削減:
+  //   fraction が小さい順（切り上げ度合いが低い）に削る。
+  //   同じなら priority が低い(数値が大きい)方から。count>0 のものだけ対象。
+  if (diff < 0) {
+    const order = allocated.slice()
       .filter((d) => d.count > 0)
-      .sort((a, b) => b.priority - a.priority || a.weight - b.weight)[0];
-    if (!target) break;
-    target.count--;
-    diff++;
+      .sort((a, b) => (a.fraction - b.fraction) || (b.priority - a.priority) || (a.weight - b.weight));
+    let i = 0;
+    while (diff < 0 && order.length > 0) {
+      const target = order[i % order.length];
+      if (target.count > 0) { target.count--; diff++; }
+      i++;
+      if (i > order.length * (questionCount + 1)) break; // 安全弁
+    }
   }
 
   return allocated;

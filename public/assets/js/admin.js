@@ -121,7 +121,6 @@ function fillCurrentSet() {
   $('d-setid').textContent = questionSet.questionSetId || '—';
   $('d-version').textContent = questionSet.version || '—';
   $('d-updated').textContent = formatJst(questionSet.updatedAt);
-  $('d-locked').textContent = questionSet.locked ? 'ロック中' : '未ロック';
   $('d-count').textContent = (s.questionCount ?? '—') + ' 問';
   $('d-pass').textContent = (s.passingScore ?? '—') + ' %';
   $('d-stock').textContent = (questionSet.questions?.length ?? 0) + ' 問';
@@ -337,17 +336,21 @@ function buildDraftFromQuestions(questions, settings, current, meta) {
     extra += 1;
     return { id: `X-${String(extra).padStart(3, '0')}`, name: label };
   });
-  const labelToId = new Map(categories.map((c) => [c.name, c.id]));
 
-  // カテゴリ配分(weight)は「実際に生成された各カテゴリの設問数」を基準にする。
-  // これにより categoryDistribution・categories・questions.category が必ず整合する。
-  const catCount = {};
-  questions.forEach((q) => { catCount[q.category] = (catCount[q.category] || 0) + 1; });
-  const categoryDistribution = categories.map((c, idx) => ({
-    categoryId: c.id,
-    weight: catCount[c.name] || 0,
-    priority: idx + 1,
-  }));
+  // カテゴリ配分(weight/priority)は「管理者がUIで設定した値」をそのまま保存する。
+  // weight は出題数に対する配分比率であり、プールの実問題数で上書きしてはいけない
+  //（プールを差し替えても想定した割合を保つため）。
+  // 設問に登場するカテゴリのみ残し、設定が無いカテゴリは weight=1 で補う。
+  const settingDist = new Map(
+    (settings.categoryDistribution || []).map((d) => [d.categoryId, d]));
+  const categoryDistribution = categories.map((c, idx) => {
+    const d = settingDist.get(c.id);
+    return {
+      categoryId: c.id,
+      weight: d ? Number(d.weight) : 1,
+      priority: d ? Number(d.priority) : (idx + 1),
+    };
+  });
 
   // 検定での出題数は「管理者が設定した値」を尊重する（プール総数で上書きしない）。
   // ただし在庫(questions.length)を超えないようにクランプ。

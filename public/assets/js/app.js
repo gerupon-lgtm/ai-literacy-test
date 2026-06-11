@@ -1,7 +1,7 @@
 // =========================================================
 // app.js  受験者向けメインコントローラ
 // =========================================================
-import { buildQuizQuestions, createQuizState, estimateMinutes } from './quiz.js';
+import { buildQuizQuestions, createQuizState, estimateMinutes, validateQuestionSet } from './quiz.js';
 import { buildResultSummary, RANK_COMMENT } from './scoring.js';
 import { renderRadar, downloadRadarPng } from './chart.js';
 import {
@@ -28,8 +28,7 @@ async function init() {
     const res = await fetch(QUESTION_SET_URL, { cache: 'no-store' });
     if (!res.ok) throw new Error('設問データを取得できませんでした。');
     questionSet = await res.json();
-    fillTopMeta();
-    els.btnStart.disabled = false;
+    fillTopMeta(); // 内部で出題セットを検証し、開始ボタンの有効/無効を制御
   } catch (err) {
     showToast('設問データの読み込みに失敗しました。');
     console.error(err);
@@ -96,6 +95,25 @@ function fillTopMeta() {
   els.metaCount.innerHTML = `${count}<small>問</small>`;
   els.metaTime.innerHTML = `${estimateMinutes(count)}<small>分</small>`;
   els.metaPass.innerHTML = `${s.passingScore ?? 70}<small>%</small>`;
+
+  // 出題セットが十分かを検証し、不足なら開始をブロック
+  const check = validateQuestionSet(questionSet);
+  const alertEl = document.getElementById('start-alert');
+  if (!check.ok) {
+    if (els.btnStart) { els.btnStart.disabled = true; }
+    if (alertEl) {
+      alertEl.innerHTML =
+        `<div class="alert alert-error">`
+        + `この検定は現在受験できません。`
+        + `出題数 <b>${check.questionCount}</b> 問に対し、設問が <b>${check.available}</b> 問しかありません`
+        + `（${check.shortBy} 問不足）。<br>`
+        + `管理者の方は、管理画面で設問を追加するか出題数を調整し、設問セットを更新してください。`
+        + `</div>`;
+    }
+  } else {
+    if (els.btnStart) { els.btnStart.disabled = false; }
+    if (alertEl) alertEl.innerHTML = '';
+  }
 }
 
 // ---------- 画面遷移 ----------
@@ -108,6 +126,12 @@ function showScreen(name) {
 
 // ---------- 受験開始 ----------
 function startQuiz() {
+  // 念のため開始時にも検証（ボタン無効化のすり抜け対策）
+  const check = validateQuestionSet(questionSet);
+  if (!check.ok) {
+    fillTopMeta(); // アラートを再表示
+    return;
+  }
   const questions = buildQuizQuestions(questionSet);
   quiz = createQuizState(questions);
   els.qTotal.textContent = questions.length;

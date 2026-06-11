@@ -107,3 +107,49 @@ export function createQuizState(questions) {
 export function estimateMinutes(count) {
   return Math.max(1, Math.ceil((count * 40) / 60));
 }
+
+/**
+ * 出題セットが検定可能かを検証する。
+ * - プール総数が出題数に満たない → 不可
+ * - カテゴリ別に見て、配分で要求される数に対し在庫が不足 → 警告（補充で埋まるが理想配分は崩れる）
+ *
+ * @returns {{ ok:boolean, questionCount:number, available:number,
+ *            shortBy:number, categoryShortages:Array<{category:string, need:number, have:number}> }}
+ */
+export function validateQuestionSet(questionSet) {
+  const settings = questionSet.settings || {};
+  const questions = questionSet.questions || [];
+  const available = questions.length;
+  const questionCount = settings.questionCount || available;
+
+  // カテゴリ別の在庫
+  const haveByCat = {};
+  questions.forEach((q) => { haveByCat[q.category] = (haveByCat[q.category] || 0) + 1; });
+
+  // 配分から各カテゴリの必要数を算出
+  const catNameMap = buildCatNameMap(questionSet);
+  const defaultDist = (questionSet.categories || []).map((c, i) => ({
+    categoryId: c.id, weight: c.weight || 1, priority: i + 1,
+  }));
+  const dist = settings.categoryDistribution && settings.categoryDistribution.length
+    ? settings.categoryDistribution : defaultDist;
+  const allocation = resolveCategoryAllocation(questionCount, dist, defaultDist);
+
+  const categoryShortages = [];
+  allocation.forEach((a) => {
+    const name = catNameMap.get(a.categoryId) || a.categoryId;
+    const have = haveByCat[name] || 0;
+    if (a.count > have) {
+      categoryShortages.push({ category: name, need: a.count, have });
+    }
+  });
+
+  const shortBy = Math.max(0, questionCount - available);
+  return {
+    ok: available >= questionCount,
+    questionCount,
+    available,
+    shortBy,
+    categoryShortages,
+  };
+}
