@@ -188,7 +188,7 @@ button { font-family: inherit; }
 .btn-primary {
   background: linear-gradient(145deg, var(--teal-400), #2f3e9e);
   border-color: transparent;
-  color: #042320;
+  color: #ffffff;
   box-shadow: 0 10px 26px -12px rgba(63,81,181,0.5);
 }
 .btn-primary:hover {
@@ -399,7 +399,7 @@ button { font-family: inherit; }
 .choice[aria-pressed="true"] .marker {
   background: var(--teal-400);
   border-color: var(--teal-400);
-  color: #042320;
+  color: #ffffff;
 }
 .choice.multi[aria-pressed="true"] .marker { border-radius: 7px; }
 
