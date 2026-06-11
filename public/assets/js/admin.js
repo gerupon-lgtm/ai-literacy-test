@@ -32,6 +32,21 @@ function formatJst(value) {
   return `${parts.year}/${parts.month}/${parts.day} ${parts.hour}:${parts.minute} (JST)`;
 }
 
+// 日本時間の yyyyMMddHHmmss を返す（ファイル名用）
+function jstStamp() {
+  const parts = new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(new Date()).reduce((a, p) => { a[p.type] = p.value; return a; }, {});
+  return `${parts.year}${parts.month}${parts.day}${parts.hour}${parts.minute}${parts.second}`;
+}
+
+// 出題セットJSONのダウンロード用ファイル名（JSTタイムスタンプ付き）
+function questionSetFileName() {
+  return `current-question-set_${jstStamp()}.json`;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   bindEvents();
   try {
@@ -142,9 +157,18 @@ async function loadSetsList() {
   setAlert('sets-alert', 'info', '<span class="spin"></span> 出題セット一覧を読み込み中…');
   try {
     const data = await ghListSets(adminToken);
-    clearAlert('sets-alert');
     clearAlert('github-status');
-    renderSetsList(data.sets || [], data.activeSetId);
+    const sets = data.sets || [];
+    renderSetsList(sets, data.activeSetId);
+    if (sets.length === 0) {
+      setAlert('sets-alert', 'info',
+        'GitHub連携は成功しています。保存済みの出題セットは0件です。'
+        + 'AI生成またはプール組み立てでセットを作成し、保存するとここに表示されます。');
+    } else {
+      setAlert('sets-alert', 'info',
+        `${sets.length} 件の出題セットを読み込みました`
+        + (data.activeSetId ? `（使用中: ${escapeHtml(data.activeSetId)}）` : '（使用中の指定なし）') + '。');
+    }
   } catch (err) {
     const msg = String(err.message || '');
     if (msg.includes('GITHUB_NOT_CONFIGURED') || msg.includes('503')) {
@@ -523,7 +547,7 @@ function onAdopt() {
     updatedAt: new Date().toISOString().slice(0, 10),
   };
   const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
-  downloadBlob(blob, 'current-question-set.json');
+  downloadBlob(blob, questionSetFileName());
   showToast('JSONをダウンロードしました。GitHubへコミットしてください。');
 }
 
@@ -582,7 +606,7 @@ function onSaveSettings() {
   fillCurrentSet();
 
   const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
-  downloadBlob(blob, 'current-question-set.json');
+  downloadBlob(blob, questionSetFileName());
   setAlert('save-alert', 'info',
     `設定を反映した current-question-set.json を書き出しました（出題数 ${count}、配分${moreThanNeeded ? '・ランダム出題' : ''}）。`
     + `<br>GitHubの <code>public/data/current-question-set.json</code> に上書きコミットすると本番反映されます。`);

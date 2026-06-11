@@ -335,7 +335,7 @@ function exportSet() {
   };
 
   const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
-  downloadBlob(blob, 'current-question-set.json');
+  downloadBlob(blob, poolFileName());
   setAlert('pool-output-alert', 'info',
     `${selected.length} 問の出題セットを書き出しました（出題数 ${meta.questionCount}）。GitHubへコミットして反映してください。`);
 }
@@ -498,3 +498,14 @@ function esc(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 function escAttr(s) { return esc(s); }
+
+// 日本時間の yyyyMMddHHmmss 付きファイル名
+function poolFileName() {
+  const parts = new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(new Date()).reduce((a, p) => { a[p.type] = p.value; return a; }, {});
+  const stamp = `${parts.year}${parts.month}${parts.day}${parts.hour}${parts.minute}${parts.second}`;
+  return `current-question-set_${stamp}.json`;
+}
