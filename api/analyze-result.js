@@ -110,6 +110,12 @@ function sanitizeComment(raw) {
   // 余分な制御文字・連続空白の整理
   text = text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 
+  // 先頭と各行頭の字下げ用空白（全角スペース含む）を除去
+  //  \u3000 = 全角スペース。trim() では取れないため明示的に処理する。
+  text = text.replace(/^[\s\u3000]+/, '');               // 文頭
+  text = text.replace(/\n[\s\u3000]+/g, '\n');           // 各行頭
+  text = text.trim();
+
   return text;
 }
 

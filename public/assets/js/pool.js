@@ -36,12 +36,44 @@ export function initPool() {
   // メタ入力の変更を反映
   ['pool-setid', 'pool-version', 'pool-count', 'pool-pass', 'pool-randomize-q', 'pool-randomize-c']
     .forEach((id) => $(id).addEventListener('input', onMetaChanged));
+
+  // ドラッグ＆ドロップ
+  const dz = $('pool-dropzone');
+  if (dz) {
+    // ゾーンクリック／ブラウズボタンでファイル選択を開く
+    dz.addEventListener('click', (e) => {
+      if (e.target.id === 'pool-browse' || e.target === dz || e.target.closest('.dropzone-inner')) {
+        if (e.target.tagName !== 'INPUT') $('pool-file').click();
+      }
+    });
+    ['dragenter', 'dragover'].forEach((ev) =>
+      dz.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); dz.classList.add('dragover'); }));
+    ['dragleave', 'dragend'].forEach((ev) =>
+      dz.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); dz.classList.remove('dragover'); }));
+    dz.addEventListener('drop', async (e) => {
+      e.preventDefault(); e.stopPropagation();
+      dz.classList.remove('dragover');
+      const files = Array.from((e.dataTransfer && e.dataTransfer.files) || [])
+        .filter((f) => /\.json$/i.test(f.name) || f.type === 'application/json');
+      if (!files.length) {
+        setAlert('pool-upload-alert', 'warn', 'JSONファイルをドロップしてください。');
+        return;
+      }
+      await processFiles(files);
+    });
+  }
 }
 
 // ---- ファイル読み込み ----
 async function onFilesSelected(e) {
   const files = Array.from(e.target.files || []);
+  e.target.value = ''; // 同じファイルを再選択できるようリセット
   if (!files.length) return;
+  await processFiles(files);
+}
+
+// ファイル配列を処理してプールへ追加（選択・ドロップ共通）
+async function processFiles(files) {
   let added = 0;
   let errors = [];
 
@@ -51,7 +83,6 @@ async function onFilesSelected(e) {
       const data = JSON.parse(text);
       const questions = extractQuestions(data);
       if (!questions.length) { errors.push(`${file.name}: 設問が見つかりません`); continue; }
-      // メタは最初のファイルから補完（未設定のときだけ）
       absorbMeta(data);
       for (const q of questions) {
         const norm = normalizeQuestion(q);
@@ -62,10 +93,7 @@ async function onFilesSelected(e) {
     }
   }
 
-  // 重複マーキング
   markDuplicates();
-  // 入力欄リセット（同じファイルを再選択できるよう）
-  e.target.value = '';
 
   const msg = `${added} 問を追加しました（プール合計 ${pool.length} 問）。`
     + (errors.length ? `<br><small>${errors.map(esc).join('<br>')}</small>` : '');
@@ -93,6 +121,40 @@ function absorbMeta(data) {
   syncMetaInputs();
 }
 
+// カテゴリ名を定義済みラベルに正規化する。
+// 受け付ける表記の例:
+//   "基本理解" / "C-001" / "C-001 基本理解" / "C-001:基本理解" /
+//   "C-001　基本理解"（全角空白）/ "[C-001] 基本理解" / "c001 基本理解"
+function normalizeCategory(raw) {
+  let s = String(raw || '').trim();
+  if (!s) return '未分類';
+
+  // 1) 完全一致（ラベル or ID）
+  const exactId = CATEGORY_DEFS.find((c) => c.id === s);
+  if (exactId) return exactId.label;
+  const exactLabel = CATEGORY_DEFS.find((c) => c.label === s);
+  if (exactLabel) return exactLabel.label;
+
+  // 2) 文字列中に ID コード（C-001 / C001 / [C-001] 等）が含まれるか
+  const idMatch = s.match(/c[-_\s]?0*(\d{1,3})/i);
+  if (idMatch) {
+    const num = String(parseInt(idMatch[1], 10)).padStart(3, '0');
+    const byId = CATEGORY_DEFS.find((c) => c.id === `C-${num}`);
+    if (byId) return byId.label;
+  }
+
+  // 3) 文字列中に定義済みラベルが含まれるか（「C-001 基本理解」→「基本理解」）
+  const byContainsLabel = CATEGORY_DEFS.find((c) => s.includes(c.label));
+  if (byContainsLabel) return byContainsLabel.label;
+
+  // 4) コード部分を除去して残りをトリム（未知ラベルでも見やすく）
+  const stripped = s
+    .replace(/^[\[\(]?\s*c[-_\s]?\d{1,3}\s*[\]\):：.\-]?\s*/i, '')
+    .replace(/[\s\u3000]+/g, ' ')
+    .trim();
+  return stripped || '未分類';
+}
+
 // 設問を内部形式へ正規化
 function normalizeQuestion(q) {
   if (!q || typeof q !== 'object') return null;
@@ -109,11 +171,8 @@ function normalizeQuestion(q) {
   let type = q.type === 'multiple' ? 'multiple' : 'single';
   if (type === 'single' && answer.length > 1) answer = [answer[0]];
 
-  // カテゴリはラベルに正規化
-  let category = String(q.category || '');
-  const byId = CATEGORY_DEFS.find((c) => c.id === category);
-  const byLabel = CATEGORY_DEFS.find((c) => c.label === category);
-  category = byId ? byId.label : (byLabel ? byLabel.label : (category || '未分類'));
+  // カテゴリはラベルに正規化（「C-001 基本理解」等のコード付きも吸収）
+  const category = normalizeCategory(q.category);
 
   return {
     uid: uidSeq++,

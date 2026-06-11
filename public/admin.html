@@ -180,7 +180,14 @@
               AI生成などで作成した設問セットJSON（複数可）を読み込み、1つのプールに統合します。
               ファイルはサーバーに送信されず、ブラウザ内だけで処理されます。
             </p>
-            <input id="pool-file" class="input" type="file" accept="application/json,.json" multiple>
+            <div id="pool-dropzone" class="dropzone">
+              <input id="pool-file" class="input" type="file" accept="application/json,.json" multiple hidden>
+              <div class="dropzone-inner">
+                <div class="dropzone-icon" aria-hidden="true">⬆</div>
+                <div>ここにJSONファイルをドラッグ＆ドロップ</div>
+                <div class="muted" style="font-size:.82rem;margin-top:4px">または <button id="pool-browse" class="link-btn" type="button">ファイルを選択</button>（複数可）</div>
+              </div>
+            </div>
             <div id="pool-upload-alert" style="margin-top:10px"></div>
             <div class="btn-row" style="margin-top:10px">
               <button id="btn-pool-clear" class="btn btn-ghost" type="button">プールを空にする</button>

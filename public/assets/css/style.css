@@ -872,3 +872,34 @@ button { font-family: inherit; }
   font-size: .78rem;
   cursor: pointer;
 }
+
+/* ===== ドロップゾーン ===== */
+.dropzone {
+  border: 2px dashed var(--border, #1c3a4f);
+  border-radius: 12px;
+  padding: 28px 18px;
+  text-align: center;
+  transition: border-color .15s, background .15s;
+  cursor: pointer;
+}
+.dropzone:hover { border-color: var(--accent, #1fa39b); }
+.dropzone.dragover {
+  border-color: var(--accent, #1fa39b);
+  background: rgba(31,163,155,.08);
+}
+.dropzone-inner { pointer-events: none; color: var(--text, #e6f1f8); font-size: .95rem; }
+.dropzone-inner .muted { pointer-events: auto; }
+.dropzone-icon {
+  font-size: 1.8rem;
+  color: var(--accent, #1fa39b);
+  margin-bottom: 8px;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent, #1fa39b);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: inherit;
+  padding: 0;
+}

@@ -15,6 +15,21 @@ let distRows = [];         // 配分行 [{categoryId,name,weight,priority}]
 
 const $ = (id) => document.getElementById(id);
 
+// ISO日時文字列を日本時間（JST）で読みやすく整形する。
+// 例: "2026-06-11T03:00:00.000Z" → "2026/06/11 12:00 (JST)"
+// 解析できない値や空はそのまま（または「—」）を返す。
+function formatJst(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return String(value);
+  const parts = new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(d).reduce((acc, p) => { acc[p.type] = p.value; return acc; }, {});
+  return `${parts.year}/${parts.month}/${parts.day} ${parts.hour}:${parts.minute} (JST)`;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   bindEvents();
   try {
@@ -104,7 +119,7 @@ function fillCurrentSet() {
   const s = questionSet.settings || {};
   $('d-setid').textContent = questionSet.questionSetId || '—';
   $('d-version').textContent = questionSet.version || '—';
-  $('d-updated').textContent = questionSet.updatedAt || '—';
+  $('d-updated').textContent = formatJst(questionSet.updatedAt);
   $('d-locked').textContent = questionSet.locked ? 'ロック中' : '未ロック';
   $('d-count').textContent = (s.questionCount ?? '—') + ' 問';
   $('d-pass').textContent = (s.passingScore ?? '—') + ' %';
