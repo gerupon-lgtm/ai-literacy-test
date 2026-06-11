@@ -2,7 +2,7 @@
   "questionSetId": "ai-literacy-2026-06-sample",
   "version": "0.0.1",
   "locked": false,
-  "updatedAt": "2026-06-11T18:39:01.124Z",
+  "updatedAt": "2026-06-11T18:54:16.680Z",
   "settings": {
     "questionCount": 20,
     "passingScore": 70,
@@ -12,41 +12,40 @@
     "categoryDistribution": [
       {
         "categoryId": "C-001",
-        "weight": 4,
+        "weight": 13,
         "priority": 1
       },
       {
         "categoryId": "C-002",
-        "weight": 3,
+        "weight": 7,
         "priority": 2
       },
       {
         "categoryId": "C-003",
-        "weight": 4,
+        "weight": 11,
         "priority": 3
       },
       {
         "categoryId": "C-004",
-        "weight": 4,
+        "weight": 7,
         "priority": 4
       },
       {
         "categoryId": "C-005",
-        "weight": 2,
+        "weight": 4,
         "priority": 5
       },
       {
         "categoryId": "C-006",
-        "weight": 2,
+        "weight": 7,
         "priority": 6
       },
       {
         "categoryId": "C-007",
-        "weight": 1,
+        "weight": 3,
         "priority": 7
       }
-    ],
-    "difficulty": "standard"
+    ]
   },
   "categories": [
     {
@@ -604,7 +603,7 @@
       "choices": [
         "AIが生成した文章は必ず正しい",
         "AIが生成したデータは人間の判断で確認する必要がある",
-        "AIは誤情報を含{むことがある",
+        "AIは誤情報を含むことがある",
         "AIは常に最新の情報を持っている"
       ],
       "answer": [
@@ -751,7 +750,7 @@
       "category": "情報管理",
       "difficulty": "standard",
       "type": "single",
-      "question": "生成AIを利用して、顧客からの問い合わせメールの内容を分析し、FAQを作成する際、個人情報保護の観点から最も取るべき対策はどれですか？",
+      "question": "生成AIを利用して、顧客からの問い合わせメールの内容を分析しFAQを作成する際、個人情報保護の観点から最も取るべき対策はどれですか？",
       "choices": [
         "メールの内容をそのまま生成AIに入力し、FAQの草案を作成させる。",
         "メール本文中の顧客の氏名、連絡先、具体的な購入履歴などの個人を特定できる情報を削除または匿名化してから生成AIに入力する。",
@@ -1121,7 +1120,7 @@
       "question": "生成AIと著作権に関する考え方として、最も適切なものはどれですか。",
       "choices": [
         "AIが生成した文章は出典確認なしで常に自由に使える",
-        "他者の著作物を無断で全文入力・転載するのは避けるべきである",
+        "他者の著作物を無断で全文入力・転載するのを避ける",
         "AIの出力に著作権侵害のリスクは一切ない",
         "公開記事は全文コピーして配布してよい"
       ],
