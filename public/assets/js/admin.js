@@ -3,7 +3,7 @@
 // =========================================================
 import { resolveCategoryAllocation } from './scoring.js';
 import { downloadBlob } from './export.js';
-import { adminLogin, generateQuestions, isApiConfigured } from './apiClient.js';
+import { adminLogin, generateQuestions, listModels, isApiConfigured } from './apiClient.js';
 
 const QUESTION_SET_URL = 'data/current-question-set.json';
 
@@ -32,6 +32,7 @@ function bindEvents() {
   $('btn-reset-dist').addEventListener('click', () => { buildDistRowsFromSet(); renderDistTable(); recalcDistribution(); });
   $('set-count').addEventListener('change', recalcDistribution);
   $('btn-generate').addEventListener('click', onGenerate);
+  $('btn-diagnose').addEventListener('click', onDiagnose);
   $('btn-adopt').addEventListener('click', onAdopt);
   $('btn-discard').addEventListener('click', onDiscard);
   $('instruction').addEventListener('input', (e) => {
@@ -167,6 +168,48 @@ function recalcDistribution() {
 }
 
 // ---------- 設問生成 ----------
+async function onDiagnose() {
+  if (!isApiConfigured()) {
+    setAlert('diag-result', 'warn', 'API未設定のため診断できません。<code>config.js</code> に Vercel のURLを設定してください。');
+    return;
+  }
+  setAlert('diag-result', 'info', '<span class="spin"></span> 各プロバイダの利用可能モデルを確認中…');
+  $('btn-diagnose').disabled = true;
+  try {
+    const results = await listModels(adminToken, 'all');
+    const blocks = [];
+
+    // Gemini
+    if (results.gemini) {
+      const g = results.gemini;
+      if (!g.configured) blocks.push('<b>Gemini</b>: 未設定');
+      else if (g.note) blocks.push(`<b>Gemini</b>: エラー（${escapeHtml(g.note)}）`);
+      else blocks.push(`<b>Gemini</b>: ${g.count} モデル利用可<br><small>${(g.models || []).slice(0, 30).map(escapeHtml).join(', ')}</small>`);
+    }
+    // OpenRouter
+    if (results.openrouter) {
+      const o = results.openrouter;
+      if (!o.configured) blocks.push('<b>OpenRouter</b>: 未設定');
+      else if (o.note) blocks.push(`<b>OpenRouter</b>: エラー（${escapeHtml(o.note)}）`);
+      else blocks.push(`<b>OpenRouter</b>: 無料モデル ${o.freeCount} 件<br><small>${(o.freeModels || []).slice(0, 30).map(escapeHtml).join(', ')}</small>`);
+    }
+    // Ollama
+    if (results.ollama) {
+      const ol = results.ollama;
+      if (ol.note) blocks.push(`<b>Ollama</b>: ${escapeHtml(ol.note)}`);
+      else blocks.push(`<b>Ollama</b>: ${ol.count} モデル<br><small>${(ol.models || []).map(escapeHtml).join(', ')}</small>`);
+    }
+
+    setAlert('diag-result', 'info',
+      '利用可能モデル診断結果：<br>' + blocks.join('<br><br>') +
+      '<br><br><small>このモデル名を Vercel の環境変数（GEMINI_MODEL / OPENROUTER_MODEL / OLLAMA_MODEL）に設定すると確実です。</small>');
+  } catch (err) {
+    setAlert('diag-result', 'error', '診断に失敗しました：' + escapeHtml(err.message || ''));
+  } finally {
+    $('btn-diagnose').disabled = false;
+  }
+}
+
 async function onGenerate() {
   const instruction = $('instruction').value.trim();
   // 空欄でもOK（サーバ側で既定の生成指示を採用）

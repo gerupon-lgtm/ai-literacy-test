@@ -158,3 +158,9 @@ export async function generateQuestionsChunked(opts) {
 export async function generateQuestions(payload) {
   return generateQuestionsChunked(payload);
 }
+
+/** 各プロバイダで実際に使えるモデルを診断する。 */
+export async function listModels(adminToken, provider = 'all') {
+  const data = await postJson('list-models', { adminToken, provider }, { timeout: 30000 });
+  return data.results || {};
+}

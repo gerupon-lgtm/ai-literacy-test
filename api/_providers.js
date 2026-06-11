@@ -49,13 +49,22 @@ export function extractJsonLoose(text) {
   return JSON.parse(raw.slice(start, end + 1));
 }
 
-// 既定のプロバイダ実行順（OpenRouter 無料最優先）
-const DEFAULT_ORDER = ['openrouter', 'gemini', 'ollama'];
+// 既定のプロバイダ実行順（Gemini 有料契約を最優先）
+const DEFAULT_ORDER = ['gemini', 'openrouter', 'ollama'];
 
-// プロバイダごとの既定モデル（無料・response_format対応・日本語可）
+// プロバイダごとの既定モデル（response_format対応・日本語可）
+// ※ モデルの提供状況は変動するため、診断API(list-models)で実在を確認できる。
+//   環境変数 GEMINI_MODEL / OPENROUTER_MODEL / OLLAMA_MODEL で上書き推奨。
 const DEFAULT_MODELS = {
-  openrouter: ['openrouter/free', 'meta-llama/llama-4-maverick:free'],
-  gemini: ['gemini-3-flash', 'gemini-2.5-flash-lite'],
+  // Gemini 有料: コスト重視。最安の Flash-Lite を先頭に、標準 Flash を保険に。
+  //   2.5-flash-lite: $0.10/$0.40（最安）／ 2.5-flash: $0.30/$2.50
+  gemini: ['gemini-2.5-flash-lite', 'gemini-2.5-flash'],
+  // OpenRouter 無料（保険）。混雑時は429になりやすいので後段に。
+  openrouter: [
+    'deepseek/deepseek-chat-v3.1:free',
+    'meta-llama/llama-3.3-70b-instruct:free',
+    'openrouter/free',
+  ],
   ollama: ['qwen2.5:7b'],
 };
 
@@ -249,15 +258,27 @@ export async function callLLM({
     const models = envList(envName, DEFAULT_MODELS[provider] || []);
 
     for (const model of models) {
-      try {
-        const content = await PROVIDER_FNS[provider]({
-          model, system, user, temperature, maxTokens, jsonSchema, timeoutMs,
-        });
-        attempts.push({ provider, model, ok: true });
-        return { content, provider, model, attempts };
-      } catch (err) {
-        attempts.push({ provider, model, ok: false, error: String(err && err.message || err) });
-        // 次のモデル / プロバイダへ
+      // 一時エラー（429/503）には指数バックオフで数回リトライ
+      const maxRetries = 2;
+      for (let retry = 0; retry <= maxRetries; retry++) {
+        try {
+          const content = await PROVIDER_FNS[provider]({
+            model, system, user, temperature, maxTokens, jsonSchema, timeoutMs,
+          });
+          attempts.push({ provider, model, ok: true, retry });
+          return { content, provider, model, attempts };
+        } catch (err) {
+          const msg = String(err && err.message || err);
+          const transient = /HTTP 429|HTTP 503|HTTP 500|HTTP 502|HTTP 504|aborted|timeout|ETIMEDOUT|ECONNRESET/i.test(msg);
+          if (transient && retry < maxRetries) {
+            // 0.8s, 1.6s, ... + ジッター
+            const wait = Math.round(800 * Math.pow(2, retry) + Math.random() * 300);
+            await new Promise((r) => setTimeout(r, wait));
+            continue; // 同じモデルで再試行
+          }
+          attempts.push({ provider, model, ok: false, error: msg, retry });
+          break; // 次のモデル / プロバイダへ
+        }
       }
     }
   }
