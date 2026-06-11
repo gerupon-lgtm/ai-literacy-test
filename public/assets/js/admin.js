@@ -3,7 +3,8 @@
 // =========================================================
 import { resolveCategoryAllocation } from './scoring.js';
 import { downloadBlob } from './export.js';
-import { adminLogin, generateQuestions, listModels, isApiConfigured } from './apiClient.js';
+import { adminLogin, generateQuestions, listModels, isApiConfigured,
+  ghListSets, ghActivateSet, ghSaveCurrent } from './apiClient.js';
 import { initPool } from './pool.js';
 import { CATEGORY_DEFS } from './categories.js';
 
@@ -44,9 +45,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 function bindEvents() {
   $('btn-login').addEventListener('click', onLogin);
   $('admin-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') onLogin(); });
-  $('btn-logout').addEventListener('click', onLogout);
+  $('btn-logout-header').addEventListener('click', onLogout);
   $('btn-recalc').addEventListener('click', recalcDistribution);
   $('btn-save-settings').addEventListener('click', onSaveSettings);
+  $('btn-refresh-sets').addEventListener('click', loadSetsList);
   $('btn-reset-dist').addEventListener('click', () => { buildDistRowsFromSet(); renderDistTable(); recalcDistribution(); });
   $('set-count').addEventListener('change', recalcDistribution);
   $('btn-generate').addEventListener('click', onGenerate);
@@ -102,17 +104,100 @@ function onLogout() {
   $('admin-pass').value = '';
   $('admin-dash').classList.add('hidden');
   $('admin-login').classList.remove('hidden');
+  $('btn-logout-header').classList.add('hidden');
   window.scrollTo({ top: 0 });
 }
 
 function enterDashboard() {
   $('admin-login').classList.add('hidden');
   $('admin-dash').classList.remove('hidden');
+  $('btn-logout-header').classList.remove('hidden');
   fillCurrentSet();
   buildDistRowsFromSet();
   renderDistTable();
   recalcDistribution();
   window.scrollTo({ top: 0 });
+
+  // プール組み立てタブが配分設定を引き継げるよう、現在の設定を公開する
+  window.getAdminSettings = () => ({
+    questionCount: parseInt($('set-count').value, 10) || 20,
+    passingScore: parseInt($('set-pass').value, 10) || 70,
+    difficulty: $('set-difficulty').value,
+    categoryDistribution: distRows.map((r) => ({
+      categoryId: r.categoryId, weight: r.weight, priority: r.priority,
+    })),
+  });
+
+  // 複数セット一覧を読み込む（GitHub連携が設定されていれば）
+  loadSetsList();
+}
+
+// ===== 複数セット管理 =====
+async function loadSetsList() {
+  if (!isApiConfigured()) {
+    setAlert('github-status', 'info',
+      'GitHub連携を使うには、本番（Vercel接続）環境で操作してください。ローカル確認モードでは利用できません。');
+    return;
+  }
+  setAlert('sets-alert', 'info', '<span class="spin"></span> 出題セット一覧を読み込み中…');
+  try {
+    const data = await ghListSets(adminToken);
+    clearAlert('sets-alert');
+    clearAlert('github-status');
+    renderSetsList(data.sets || [], data.activeSetId);
+  } catch (err) {
+    const msg = String(err.message || '');
+    if (msg.includes('GITHUB_NOT_CONFIGURED') || msg.includes('503')) {
+      setAlert('github-status', 'warn',
+        'GitHub連携が未設定です。Vercelに <code>GITHUB_TOKEN</code> / <code>GITHUB_OWNER</code> / <code>GITHUB_REPO</code> を設定すると、'
+        + 'このセクションから複数セットの保存・切替ができます。');
+      $('sets-list').innerHTML = '';
+    } else {
+      setAlert('sets-alert', 'error', 'セット一覧の取得に失敗しました：' + escapeHtml(msg));
+    }
+  }
+}
+
+function renderSetsList(sets, activeSetId) {
+  const container = $('sets-list');
+  if (!sets.length) {
+    container.innerHTML = '<p class="muted" style="font-size:.86rem">保存された出題セットはまだありません。AI生成またはプール組み立てで作成し、保存してください。</p>';
+    return;
+  }
+  container.innerHTML = '';
+  sets.forEach((s) => {
+    const isActive = s.id === activeSetId;
+    const item = document.createElement('div');
+    item.className = 'set-item' + (isActive ? ' active' : '');
+    const updated = s.updatedAt ? formatJst(s.updatedAt) : '—';
+    item.innerHTML =
+      '<div class="set-info">'
+      + '<div class="set-name">' + escapeHtml(s.questionSetId || s.id) + '</div>'
+      + '<div class="set-meta">'
+      + 'ID: ' + escapeHtml(s.id) + ' ／ ver ' + escapeHtml(s.version || '—')
+      + ' ／ 出題' + s.questionCount + '問 ／ 在庫' + s.poolSize + '問 ／ ' + escapeHtml(updated)
+      + '</div></div>'
+      + (isActive
+        ? '<span class="active-badge">使用中</span>'
+        : '<button class="btn btn-primary btn-activate" type="button" data-id="' + escapeHtml(s.id) + '">このセットを使う</button>');
+    container.appendChild(item);
+  });
+  // 切替ボタン
+  container.querySelectorAll('.btn-activate').forEach((btn) => {
+    btn.addEventListener('click', () => onActivateSet(btn.dataset.id));
+  });
+}
+
+async function onActivateSet(setId) {
+  if (!confirm(`出題セット「${setId}」を検定で使用するセットに切り替えますか？`)) return;
+  setAlert('sets-alert', 'info', '<span class="spin"></span> 切り替え中…');
+  try {
+    await ghActivateSet(adminToken, setId);
+    setAlert('sets-alert', 'info', `「${escapeHtml(setId)}」に切り替えました。数十秒後に検定画面へ反映されます。`);
+    await loadSetsList();
+  } catch (err) {
+    setAlert('sets-alert', 'error', '切り替えに失敗しました：' + escapeHtml(err.message || ''));
+  }
 }
 
 // ---------- 現在の設問セット表示 ----------

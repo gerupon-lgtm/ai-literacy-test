@@ -292,9 +292,20 @@ function exportSet() {
     extra += 1;
     return { id: `X-${String(extra).padStart(3, '0')}`, name: label };
   });
-  const categoryDistribution = categories.map((c, idx) => ({
-    categoryId: c.id, weight: catCount[c.name], priority: idx + 1,
-  }));
+
+  // 配分(weight/priority)は、管理画面（AI生成タブ）で設定されている値を引き継ぐ。
+  // 該当カテゴリの設定があればそれを使い、無ければ採用実数をweightにする。
+  const adminSettings = (typeof window.getAdminSettings === 'function') ? window.getAdminSettings() : null;
+  const adminDist = new Map(
+    (adminSettings && adminSettings.categoryDistribution || []).map((d) => [d.categoryId, d]));
+  const categoryDistribution = categories.map((c, idx) => {
+    const d = adminDist.get(c.id);
+    return {
+      categoryId: c.id,
+      weight: d ? Number(d.weight) : catCount[c.name],   // 設定があれば優先、無ければ採用実数
+      priority: d ? Number(d.priority) : (idx + 1),
+    };
+  });
 
   const out = {
     questionSetId: meta.questionSetId || `custom-${Date.now()}`,
@@ -430,8 +441,8 @@ function renderQuestion(q) {
     el.classList.toggle('selected', q.selected);
     renderStats(); updateCountNote(); renderOutputSummary();
   });
-  el.querySelector('.q-text').addEventListener('input', (e) => { q.question = e.target.value; });
-  el.querySelector('.expl').addEventListener('input', (e) => { q.explanation = e.target.value; });
+  el.querySelector('.q-text').addEventListener('input', (e) => { q.question = e.target.value; autoGrow(e.target); });
+  el.querySelector('.expl').addEventListener('input', (e) => { q.explanation = e.target.value; autoGrow(e.target); });
   el.querySelectorAll('.ch').forEach((inp) => {
     inp.addEventListener('input', (e) => { q.choices[+e.target.dataset.ci] = e.target.value; });
   });
@@ -454,7 +465,19 @@ function renderQuestion(q) {
     render();
   });
 
+  // 初期表示時にテキストエリアの高さを内容に合わせる
+  requestAnimationFrame(() => {
+    el.querySelectorAll('.q-text, .expl').forEach((t) => autoGrow(t));
+  });
+
   return el;
+}
+
+// テキストエリアの高さを内容に合わせて自動拡張する
+function autoGrow(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  el.style.height = (el.scrollHeight + 2) + 'px';
 }
 
 function renderOutputSummary() {

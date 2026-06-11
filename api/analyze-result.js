@@ -73,6 +73,9 @@ export default async function handler(req, res) {
 //  - 途中で切れた壊れた断片や重複文を整理
 function sanitizeComment(raw) {
   if (!raw || typeof raw !== 'string') return '';
+  // 元の本文に段落字下げ（先頭の空白）があったかを記録しておく。
+  //  JSON で返ってくる場合に備え、"comment":"..." 内の先頭空白も見る。
+  const hadIndent = /^[\s\u3000]/.test(raw) || /"(?:comment|text)"\s*:\s*"[ \t\u3000]/.test(raw);
   let text = raw.trim();
 
   // ```json ... ``` フェンス除去
@@ -101,20 +104,22 @@ function sanitizeComment(raw) {
 
   // エスケープ済み改行・引用符を復元/除去
   text = text.replace(/\\n/g, '\n').replace(/\\"/g, '"');
-  // 前後の引用符を剥がす
-  text = text.replace(/^["'「『]+/, '').replace(/["'」』]+$/, '').trim();
+  // 前後の引用符を剥がす（末尾側のみtrim。先頭の字下げは後で正規化するため保持）
+  text = text.replace(/^["'「『]+/, '').replace(/["'」』]+\s*$/, '').replace(/\s+$/, '');
 
   // 重複した末尾文の除去（壊れた生成で同じ文が複数並ぶケース）
   text = dedupeTrailingSentences(text);
 
-  // 余分な制御文字・連続空白の整理
-  text = text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  // 余分な制御文字・連続空白の整理（先頭の字下げは保持）
+  text = text.replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').replace(/\s+$/, '');
 
-  // 先頭と各行頭の字下げ用空白（全角スペース含む）を除去
-  //  \u3000 = 全角スペース。trim() では取れないため明示的に処理する。
-  text = text.replace(/^[\s\u3000]+/, '');               // 文頭
-  text = text.replace(/\n[\s\u3000]+/g, '\n');           // 各行頭
-  text = text.trim();
+  // 先頭・各行頭の字下げを正規化する。
+  //  元の出力に字下げ意図があった場合のみ、段落の字下げとして全角スペース1個を付ける。
+  //  （半角/全角混在・複数の字下げも全角1個に統一。空白が無かった場合は付けない）
+  text = text.replace(/^[ \t\u3000]+/, '');               // いったん先頭空白を除去
+  text = text.replace(/\n[ \t\u3000]+/g, '\n\u3000');     // 各行頭の字下げは全角1個に
+  if (hadIndent) text = '\u3000' + text;                  // 字下げ意図があれば全角1個を付与
+  text = text.replace(/[\s\u3000]+$/, '');                // 末尾の空白除去（先頭は保持）
 
   return text;
 }

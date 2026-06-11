@@ -205,3 +205,25 @@ export async function listModels(adminToken, provider = 'all', probe = false) {
   const data = await postJson('list-models', { adminToken, provider, probe }, { timeout: 40000 });
   return { results: data.results || {}, config: data.config || null, probes: data.probes || null };
 }
+
+// ===== GitHub ストレージ連携 =====
+
+/** セット一覧とアクティブ設定を取得 */
+export async function ghListSets(adminToken) {
+  return postJson('github-save', { adminToken, action: 'list' }, { timeout: 30000 });
+}
+
+/** セットを sets/<id>.json に保存 */
+export async function ghSaveSet(adminToken, setId, questionSet) {
+  return postJson('github-save', { adminToken, action: 'save', setId, questionSet }, { timeout: 30000 });
+}
+
+/** 指定セットをアクティブにする（current にも反映） */
+export async function ghActivateSet(adminToken, setId) {
+  return postJson('github-save', { adminToken, action: 'activate', setId }, { timeout: 30000 });
+}
+
+/** current-question-set.json を直接保存（単一セット運用の互換） */
+export async function ghSaveCurrent(adminToken, questionSet) {
+  return postJson('github-save', { adminToken, action: 'save_current', questionSet }, { timeout: 30000 });
+}

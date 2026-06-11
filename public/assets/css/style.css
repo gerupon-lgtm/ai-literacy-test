@@ -913,3 +913,48 @@ button { font-family: inherit; }
   font-size: inherit;
   padding: 0;
 }
+
+/* ===== ヘッダー右端のログアウトボタン ===== */
+.btn-header-logout {
+  margin-left: auto;   /* 右端へ押しやる */
+  align-self: center;
+  white-space: nowrap;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+}
+.btn-header-logout.hidden { display: none; }
+
+/* プール組み立てのテキストエリア自動拡張 */
+.pool-q .q-text, .pool-q .expl {
+  overflow: hidden;
+  min-height: 2.2em;
+}
+
+/* ===== 複数セット一覧 ===== */
+.sets-list { display: flex; flex-direction: column; gap: 8px; }
+.set-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border, #d8e0e6);
+  border-radius: 10px;
+  background: var(--panel-2, #fff);
+}
+.set-item.active {
+  border-color: var(--teal-400, #3f51b5);
+  background: rgba(63,81,181,0.06);
+}
+.set-item .set-info { flex: 1; min-width: 0; }
+.set-item .set-name { font-weight: 600; font-size: .95rem; word-break: break-all; }
+.set-item .set-meta { font-size: .78rem; color: var(--muted, #5b6b78); margin-top: 2px; }
+.set-item .active-badge {
+  font-size: .74rem; font-weight: 600;
+  color: var(--teal-400, #3f51b5);
+  background: rgba(63,81,181,0.12);
+  border: 1px solid rgba(63,81,181,0.3);
+  border-radius: 5px; padding: 2px 8px; white-space: nowrap;
+}
+.set-item .btn-activate {
+  font-size: .82rem; padding: 5px 12px; white-space: nowrap;
+}

@@ -73,6 +73,8 @@ function bindEvents() {
     if (confirm('受験を中断してトップへ戻りますか？回答内容は失われます。')) showScreen('top');
   });
   els.btnRetry.addEventListener('click', () => showScreen('top'));
+  const btnHome = id('btn-home');
+  if (btnHome) btnHome.addEventListener('click', () => { showScreen('top'); window.scrollTo({ top: 0 }); });
   els.btnCopy.addEventListener('click', onCopy);
   els.btnCsv.addEventListener('click', () => {
     downloadBlob(csvBlob(summary), 'ai-literacy-result.csv');

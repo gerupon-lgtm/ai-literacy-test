@@ -22,6 +22,7 @@
         <span class="name">AIリテラシー検定</span>
         <span class="sub">Admin Console</span>
       </span>
+      <button id="btn-logout-header" class="btn btn-ghost btn-header-logout hidden" type="button">ログアウト</button>
     </header>
 
     <main id="main">
@@ -74,6 +75,21 @@
               <tr><th scope="row">設問数(在庫)</th><td id="d-stock" class="num">—</td></tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- 複数セットの保持・切替（GitHub連携） -->
+        <div class="panel">
+          <h2 class="section-title">出題セットの保存・切替</h2>
+          <p class="muted" style="font-size:.86rem;margin-bottom:12px">
+            複数の出題セットをGitHubに保存し、検定で使うものを切り替えます。
+            切り替えた内容は、次に別のセットを選ぶまで保持されます。
+          </p>
+          <div id="github-status"></div>
+          <div id="sets-list" class="sets-list"></div>
+          <div class="btn-row" style="margin-top:12px">
+            <button id="btn-refresh-sets" class="btn btn-ghost" type="button">一覧を更新</button>
+          </div>
+          <div id="sets-alert"></div>
         </div>
 
         <!-- 基本設定 -->
@@ -133,13 +149,13 @@
             <button id="btn-reset-dist" class="btn btn-ghost" type="button">初期配分に戻す</button>
           </div>
           <div class="alert alert-info" style="margin-top:14px">
-            出題数・合格ライン・カテゴリ配分の変更は、下のボタンで書き出して
-            GitHubにコミットするまで本番に反映されません。
-            <span class="muted">（AI生成をせず、配分だけ変えたいときはこちら）</span>
+            出題数・合格ライン・カテゴリ配分の変更は、下のボタンで選択中の出題セットに反映され、
+            書き出してGitHubにコミットすると本番に反映されます。
+            <span class="muted">（AI生成をせず、配分だけ変えたいときもこちら）</span>
           </div>
           <div id="save-alert"></div>
           <div class="btn-row">
-            <button id="btn-save-settings" class="btn btn-primary" type="button">設定を反映して current-question-set.json を書き出す</button>
+            <button id="btn-save-settings" class="btn btn-primary" type="button">設定を反映して 選択中の出題セットファイルを書き出す</button>
           </div>
         </div>
 
@@ -156,7 +172,6 @@
           <div class="btn-row">
             <button id="btn-generate" class="btn btn-primary" type="button">設問案を生成</button>
             <button id="btn-diagnose" class="btn btn-ghost" type="button">使えるモデルを確認</button>
-            <button id="btn-logout" class="btn btn-ghost" type="button">ログアウト</button>
           </div>
           <div id="diag-result"></div>
         </div>
