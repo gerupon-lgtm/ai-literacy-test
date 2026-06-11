@@ -4,3 +4,5 @@ node_modules/
 *.log
 .env
 .env.local
+public/data/current-question-set.json
+public/data/sample-question-set.json
