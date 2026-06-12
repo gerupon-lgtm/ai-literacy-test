@@ -79,7 +79,7 @@ function bindEvents() {
   $('tab-btn-pool').addEventListener('click', () => switchTab('pool'));
 
   // 設問プール初期化
-  initPool();
+  initPool(() => adminToken);
 }
 
 function switchTab(which) {

@@ -135,6 +135,17 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, sets, activeSetId: active });
     }
 
+    if (action === 'get') {
+      const setId = sanitizeId(body.setId);
+      if (!setId) return res.status(400).json({ ok: false, message: 'setId が不正です。' });
+      const file = await getFile(cfg, `${SETS_DIR}/${setId}.json`);
+      if (!file) return res.status(404).json({ ok: false, message: `セット ${setId} が見つかりません。` });
+      let questionSet = null;
+      try { questionSet = JSON.parse(file.content); }
+      catch { return res.status(500).json({ ok: false, message: 'セットのJSONが壊れています。' }); }
+      return res.status(200).json({ ok: true, setId, questionSet });
+    }
+
     if (action === 'save') {
       const setId = sanitizeId(body.setId);
       if (!setId) return res.status(400).json({ ok: false, message: 'setId が不正です。' });

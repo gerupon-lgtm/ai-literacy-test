@@ -213,6 +213,11 @@ export async function ghListSets(adminToken) {
   return postJson('github-save', { adminToken, action: 'list' }, { timeout: 30000 });
 }
 
+/** 個別セットの全内容を取得（編集用） */
+export async function ghGetSet(adminToken, setId) {
+  return postJson('github-save', { adminToken, action: 'get', setId }, { timeout: 30000 });
+}
+
 /** セットを sets/<id>.json に保存 */
 export async function ghSaveSet(adminToken, setId, questionSet) {
   return postJson('github-save', { adminToken, action: 'save', setId, questionSet }, { timeout: 30000 });

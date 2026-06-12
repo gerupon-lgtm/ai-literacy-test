@@ -9,6 +9,7 @@
 // =========================================================
 import { downloadBlob } from './export.js';
 import { CATEGORY_DEFS } from './categories.js';
+import { ghListSets, ghGetSet, ghSaveSet, isApiConfigured } from './apiClient.js';
 
 // プール状態
 let pool = [];          // { uid, question, choices[], answer[], type, category, difficulty, explanation, tags[], selected, dupOf }
@@ -21,17 +22,26 @@ let meta = {
   randomizeChoices: true,
 };
 let uidSeq = 1;
+let sourceSetId = null;   // GitHubから読み込んだ場合の元セットID（上書き保存先）
+let getAdminToken = null; // admin.js からトークン取得関数を受け取る
 
 const $ = (id) => document.getElementById(id);
 
 // ---- 初期化（admin.js から呼ぶ） ----
-export function initPool() {
+export function initPool(tokenGetter) {
+  getAdminToken = tokenGetter || (() => null);
   $('pool-file').addEventListener('change', onFilesSelected);
   $('btn-pool-clear').addEventListener('click', clearPool);
   $('btn-pool-all').addEventListener('click', () => setAllSelected(true));
   $('btn-pool-none').addEventListener('click', () => setAllSelected(false));
   $('btn-pool-dedup').addEventListener('click', deselectDuplicates);
   $('btn-pool-export').addEventListener('click', exportSet);
+
+  // GitHub連携
+  const ghRefresh = $('btn-pool-gh-refresh');
+  if (ghRefresh) ghRefresh.addEventListener('click', loadGhSets);
+  const ghSave = $('btn-pool-gh-save');
+  if (ghSave) ghSave.addEventListener('click', onGhSave);
 
   // メタ入力の変更を反映
   ['pool-setid', 'pool-version', 'pool-count', 'pool-pass', 'pool-randomize-q', 'pool-randomize-c']
@@ -219,9 +229,159 @@ function bigrams(s) { const set = new Set(); for (let i = 0; i < s.length - 1; i
 function clearPool() {
   if (pool.length && !confirm('プールを空にしますか？')) return;
   pool = [];
+  sourceSetId = null;
+  updateGhSaveButton();
   render();
   setAlert('pool-upload-alert', 'info', 'プールを空にしました。');
 }
+
+// ===== GitHub連携：一覧取得・読み込み・上書き保存 =====
+
+async function loadGhSets() {
+  if (!isApiConfigured()) {
+    setAlert('pool-gh-status', 'info',
+      'GitHub連携を使うには本番（Vercel接続）環境で操作してください。ローカル確認モードでは利用できません。');
+    return;
+  }
+  setAlert('pool-gh-alert', 'info', '<span class="spin"></span> GitHubのセット一覧を取得中…');
+  try {
+    const data = await ghListSets(getAdminToken());
+    clearAlert('pool-gh-status');
+    const sets = data.sets || [];
+    renderGhList(sets);
+    if (sets.length === 0) {
+      setAlert('pool-gh-alert', 'info', 'GitHubに保存済みのセットはありません。');
+    } else {
+      clearAlert('pool-gh-alert');
+    }
+  } catch (err) {
+    const msg = String(err.message || '');
+    if (msg.includes('GITHUB_NOT_CONFIGURED') || msg.includes('503')) {
+      setAlert('pool-gh-status', 'warn',
+        'GitHub連携が未設定です。Vercelに GITHUB_TOKEN / GITHUB_OWNER / GITHUB_REPO を設定してください。');
+      $('pool-gh-list').innerHTML = '';
+    } else {
+      setAlert('pool-gh-alert', 'error', 'セット一覧の取得に失敗しました：' + esc(msg));
+    }
+  }
+}
+
+function renderGhList(sets) {
+  const container = $('pool-gh-list');
+  if (!sets.length) { container.innerHTML = ''; return; }
+  container.innerHTML = '';
+  sets.forEach((s) => {
+    const item = document.createElement('div');
+    item.className = 'set-item' + (s.id === sourceSetId ? ' active' : '');
+    const updated = s.updatedAt ? formatJstShort(s.updatedAt) : '—';
+    item.innerHTML =
+      '<div class="set-info">'
+      + '<div class="set-name">' + esc(s.questionSetId || s.id) + '</div>'
+      + '<div class="set-meta">ID: ' + esc(s.id) + ' ／ ver ' + esc(s.version || '—')
+      + ' ／ 在庫' + s.poolSize + '問 ／ ' + esc(updated) + '</div></div>'
+      + (s.id === sourceSetId
+        ? '<span class="active-badge">編集中</span>'
+        : '<button class="btn btn-primary btn-activate" type="button" data-id="' + esc(s.id) + '">読み込んで編集</button>');
+    container.appendChild(item);
+  });
+  container.querySelectorAll('.btn-activate').forEach((btn) => {
+    btn.addEventListener('click', () => loadGhSetIntoPool(btn.dataset.id));
+  });
+}
+
+async function loadGhSetIntoPool(setId) {
+  if (pool.length && !confirm(`現在のプール（${pool.length}問）を破棄して、セット「${setId}」を読み込みますか？`)) return;
+  setAlert('pool-gh-alert', 'info', '<span class="spin"></span> セットを読み込み中…');
+  try {
+    const data = await ghGetSet(getAdminToken(), setId);
+    const qs = data.questionSet;
+    if (!qs || !Array.isArray(qs.questions)) throw new Error('セットの内容が不正です。');
+
+    // プールを差し替え
+    pool = [];
+    uidSeq = 1;
+    qs.questions.forEach((q) => {
+      const norm = normalizeQuestion(q);
+      if (norm) { norm.selected = true; pool.push(norm); }
+    });
+    // メタ情報を取り込み
+    absorbSetMeta(qs);
+    sourceSetId = setId;
+    markDuplicates();
+    render();
+    updateGhSaveButton();
+    setAlert('pool-gh-alert', 'info',
+      `セット「${esc(setId)}」を読み込みました（${pool.length}問）。編集後、下の「GitHubのセットに上書き保存」でpushできます。`);
+  } catch (err) {
+    setAlert('pool-gh-alert', 'error', '読み込みに失敗しました：' + esc(err.message || ''));
+  }
+}
+
+// 出題セットのメタ情報をプールのmetaに取り込む
+function absorbSetMeta(qs) {
+  const s = qs.settings || {};
+  meta.questionSetId = qs.questionSetId || meta.questionSetId;
+  meta.version = qs.version || meta.version;
+  if (s.questionCount != null) meta.questionCount = s.questionCount;
+  if (s.passingScore != null) meta.passingScore = s.passingScore;
+  if (s.randomizeQuestions != null) meta.randomizeQuestions = s.randomizeQuestions;
+  if (s.randomizeChoices != null) meta.randomizeChoices = s.randomizeChoices;
+  // 入力欄へ反映
+  $('pool-setid').value = meta.questionSetId;
+  $('pool-version').value = meta.version;
+  $('pool-count').value = meta.questionCount;
+  $('pool-pass').value = meta.passingScore;
+  $('pool-randomize-q').checked = !!meta.randomizeQuestions;
+  $('pool-randomize-c').checked = !!meta.randomizeChoices;
+}
+
+// GitHub保存ボタンの表示・ラベルを更新
+function updateGhSaveButton() {
+  const btn = $('btn-pool-gh-save');
+  const note = $('pool-source-note');
+  if (!btn) return;
+  if (sourceSetId) {
+    btn.classList.remove('hidden');
+    btn.textContent = `GitHubのセット「${sourceSetId}」に上書き保存（push）`;
+    if (note) {
+      note.style.display = '';
+      note.innerHTML = `編集中: GitHubセット <b>${esc(sourceSetId)}</b>（上書き保存先）`;
+    }
+  } else {
+    btn.classList.add('hidden');
+    if (note) note.style.display = 'none';
+  }
+}
+
+async function onGhSave() {
+  if (!sourceSetId) { setAlert('pool-output-alert', 'error', '読み込み元のGitHubセットがありません。'); return; }
+  const out = buildExportObject();
+  if (!out) return; // エラーはbuildExportObject内で表示
+  if (!confirm(`GitHubのセット「${sourceSetId}」に上書き保存（push）しますか？`)) return;
+  setAlert('pool-output-alert', 'info', '<span class="spin"></span> GitHubに保存中…');
+  try {
+    await ghSaveSet(getAdminToken(), sourceSetId, out);
+    setAlert('pool-output-alert', 'info',
+      `GitHubのセット「${esc(sourceSetId)}」に上書き保存しました（push完了）。`
+      + `検定で使うには「出題セットの保存・切替」で切り替えてください。`);
+  } catch (err) {
+    setAlert('pool-output-alert', 'error', 'GitHub保存に失敗しました：' + esc(err.message || ''));
+  }
+}
+
+// 日時を短く整形（JST）
+function formatJstShort(value) {
+  try {
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return String(value);
+    const p = new Intl.DateTimeFormat('ja-JP', {
+      timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(d).reduce((a, x) => { a[x.type] = x.value; return a; }, {});
+    return `${p.year}/${p.month}/${p.day} ${p.hour}:${p.minute}`;
+  } catch { return String(value); }
+}
+
 function setAllSelected(v) { pool.forEach((q) => { q.selected = v; }); render(); }
 function deselectDuplicates() {
   let n = 0;
@@ -267,13 +427,15 @@ function updateCountNote() {
 }
 
 // ---- 出力 ----
-function exportSet() {
+// 採用設問から出題セットJSONオブジェクトを構築する。
+// 検証に失敗した場合は null を返し、アラートを表示する。
+function buildExportObject() {
   const selected = pool.filter((q) => q.selected);
-  if (!selected.length) { setAlert('pool-output-alert', 'error', '設問が1問も選択されていません。'); return; }
+  if (!selected.length) { setAlert('pool-output-alert', 'error', '設問が1問も選択されていません。'); return null; }
   if (selected.length < meta.questionCount) {
     setAlert('pool-output-alert', 'error',
       `採用 ${selected.length} 問が出題数 ${meta.questionCount} 問より少ないです。出題数を減らすか設問を追加してください。`);
-    return;
+    return null;
   }
 
   // カテゴリ配分を採用設問から自動算出（未分類・独自カテゴリも漏らさず含める）
@@ -307,10 +469,9 @@ function exportSet() {
     };
   });
 
-  const out = {
+  return {
     questionSetId: meta.questionSetId || `custom-${Date.now()}`,
     version: meta.version || '1.0.0',
-    locked: false,
     updatedAt: new Date().toISOString(),
     settings: {
       questionCount: meta.questionCount,
@@ -333,17 +494,17 @@ function exportSet() {
       tags: q.tags,
     })),
   };
+}
 
-  // GitHub連携が使えるなら直接保存、無ければダウンロードにフォールバック
-  if (typeof window.saveQuestionSetFromPool === 'function') {
-    window.saveQuestionSetFromPool(out, 'pool-output-alert',
-      `${selected.length} 問の出題セット（出題数 ${meta.questionCount}）を作成しました。`);
-  } else {
-    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
-    downloadBlob(blob, poolFileName());
-    setAlert('pool-output-alert', 'info',
-      `${selected.length} 問の出題セットを書き出しました（出題数 ${meta.questionCount}）。GitHubへコミットして反映してください。`);
-  }
+// ダウンロード（JSONファイルとして保存）
+function exportSet() {
+  const out = buildExportObject();
+  if (!out) return;
+  const selected = pool.filter((q) => q.selected);
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+  downloadBlob(blob, poolFileName());
+  setAlert('pool-output-alert', 'info',
+    `${selected.length} 問の出題セットをダウンロードしました（出題数 ${meta.questionCount}）。`);
 }
 
 // ---- 描画 ----
@@ -524,6 +685,10 @@ function setAlert(id, kind, html) {
   const el = $(id);
   if (!el) return;
   el.innerHTML = `<div class="alert alert-${kind === 'error' ? 'error' : kind === 'warn' ? 'warn' : 'info'}">${html}</div>`;
+}
+function clearAlert(id) {
+  const el = $(id);
+  if (el) el.innerHTML = '';
 }
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, (c) =>

@@ -218,6 +218,20 @@
             </div>
           </div>
 
+          <!-- GitHubから既存セットを読み込む -->
+          <div class="panel">
+            <h2 class="section-title">GitHubの出題セットを読み込んで編集</h2>
+            <p class="muted" style="font-size:.86rem;margin-bottom:12px">
+              GitHubに保存済みの出題セットを読み込んで編集できます。保存時は同じセットに上書きします。
+            </p>
+            <div id="pool-gh-status"></div>
+            <div id="pool-gh-list" class="sets-list"></div>
+            <div class="btn-row" style="margin-top:12px">
+              <button id="btn-pool-gh-refresh" class="btn btn-ghost" type="button">GitHubのセット一覧を更新</button>
+            </div>
+            <div id="pool-gh-alert"></div>
+          </div>
+
           <!-- メタ情報編集 -->
           <div class="panel hidden" id="pool-meta-panel">
             <h2 class="section-title">出題セットの情報（手入力で修正可）</h2>
@@ -275,12 +289,15 @@
           <div class="panel hidden" id="pool-output-panel">
             <h2 class="section-title">出題セットを書き出し</h2>
             <div id="pool-output-summary" class="muted" style="font-size:.86rem;margin-bottom:12px"></div>
+            <div id="pool-source-note" class="alert alert-info" style="font-size:.84rem;display:none"></div>
             <div id="pool-output-alert"></div>
             <div class="btn-row">
-              <button id="btn-pool-export" class="btn btn-primary" type="button">current-question-set.json を書き出す</button>
+              <button id="btn-pool-gh-save" class="btn btn-primary hidden" type="button">GitHubのセットに上書き保存（push）</button>
+              <button id="btn-pool-export" class="btn btn-ghost" type="button">JSONをダウンロード</button>
             </div>
             <div class="alert alert-info" style="margin-top:14px">
-              書き出したJSONを GitHub の <code>public/data/current-question-set.json</code> に上書きコミットすると本番反映されます。
+              <b>GitHubに上書き保存</b>すると、読み込んだ元のセットに直接pushされます（保存のみ。検定で使うには「出題セットの保存・切替」で切り替えてください）。
+              <br><b>ダウンロード</b>はJSONファイルとして保存します。
             </div>
           </div>
         </div><!-- /tab-pool -->
