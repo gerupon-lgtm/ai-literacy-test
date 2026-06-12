@@ -3,7 +3,7 @@
 // =========================================================
 import { buildQuizQuestions, createQuizState, estimateMinutes, validateQuestionSet } from './quiz.js';
 import { buildResultSummary, RANK_COMMENT } from './scoring.js';
-import { renderRadar, downloadRadarPng } from './chart.js';
+import { renderRadar, downloadRadarPng, resultToPngBlob } from './chart.js';
 import {
   copyResult, csvBlob, txtBlob, downloadBlob,
   shareResultByEmail, buildResultText,
@@ -81,8 +81,28 @@ function bindEvents() {
     showToast('CSVを保存しました。');
   });
   els.btnPng.addEventListener('click', async () => {
-    const ok = await downloadRadarPng();
-    showToast(ok ? 'チャート画像を保存しました。' : '画像を保存できませんでした。');
+    // スコア・レーダー・カテゴリ別横棒を1枚に合成して保存
+    const cats = (summary.categoryScores || []).map((c) => ({ name: c.category, ratePercent: c.rate }));
+    let blob = null;
+    try {
+      blob = await resultToPngBlob({
+        rank: summary.rank,
+        scoreRate: summary.scoreRate,
+        correctCount: summary.correctCount,
+        totalQuestions: summary.totalQuestions,
+        aiLiteracyDeviation: summary.aiLiteracyDeviation,
+        passingScore: (questionSet.settings && questionSet.settings.passingScore),
+        categories: cats,
+      });
+    } catch (e) { blob = null; }
+    if (blob) {
+      downloadBlob(blob, `ai-literacy-result_${jstStampApp()}.png`);
+      showToast('結果画像を保存しました。');
+    } else {
+      // フォールバック: レーダーのみ
+      const ok = await downloadRadarPng(`ai-literacy-radar_${jstStampApp()}.png`);
+      showToast(ok ? 'チャート画像を保存しました。' : '画像を保存できませんでした。');
+    }
   });
   els.btnShare.addEventListener('click', onShare);
 
@@ -313,7 +333,10 @@ async function requestAiComment() {
 
 function setAiComment(text) {
   els.aiComment.classList.remove('loading');
-  els.aiCommentText.textContent = text;
+  // 先頭の空白・改行（全角スペース含む）を除去して表示位置を整える。
+  // pre-wrap で表示するため、先頭に余白があると視覚的に空いて見える。
+  const cleaned = String(text == null ? '' : text).replace(/^[\s\u3000]+/, '');
+  els.aiCommentText.textContent = cleaned;
 }
 
 /** AI未連携・失敗時のローカル生成コメント */
@@ -384,4 +407,14 @@ function escapeHtml(str) {
   return String(str)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// 日本時間の yyyyMMddHHmmss（ファイル名用）
+function jstStampApp() {
+  const parts = new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  }).formatToParts(new Date()).reduce((a, p) => { a[p.type] = p.value; return a; }, {});
+  return `${parts.year}${parts.month}${parts.day}${parts.hour}${parts.minute}${parts.second}`;
 }

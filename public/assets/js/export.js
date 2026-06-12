@@ -24,7 +24,7 @@ export function buildResultText(summary, comment) {
   lines.push(`総合スコア : ${summary.scoreRate} / 100`);
   lines.push(`ランク     : ${summary.rank}`);
   lines.push(`正答数     : ${summary.correctCount} / ${summary.totalQuestions}`);
-  lines.push(`偏差値風   : ${summary.aiLiteracyDeviation}`);
+  lines.push(`偏差値     : ${summary.aiLiteracyDeviation}`);
   lines.push('');
   lines.push('— カテゴリ別理解度 —');
   summary.categoryScores.forEach((c) => {
@@ -48,7 +48,7 @@ export function buildResultCsv(summary) {
   rows.push(['ランク', summary.rank]);
   rows.push(['正答数', summary.correctCount]);
   rows.push(['問題数', summary.totalQuestions]);
-  rows.push(['偏差値風スコア', summary.aiLiteracyDeviation]);
+  rows.push(['偏差値スコア', summary.aiLiteracyDeviation]);
   rows.push([]);
   rows.push(['カテゴリ', '正答数', '問題数', '正答率(%)']);
   summary.categoryScores.forEach((c) => {

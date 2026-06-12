@@ -184,13 +184,14 @@
           </div>
           <div id="preview-meta" class="muted" style="font-size:.84rem;margin-bottom:12px"></div>
           <div id="preview-questions"></div>
+          <div id="adopt-alert"></div>
           <div class="btn-row" style="margin-top:16px">
-            <button id="btn-adopt" class="btn btn-primary" type="button">この内容でJSONをダウンロード</button>
+            <button id="btn-adopt" class="btn btn-primary" type="button">この内容を選択中の出題セットに保存</button>
             <button id="btn-discard" class="btn btn-ghost" type="button">破棄</button>
           </div>
           <div class="alert alert-info" style="margin-top:14px">
-            初期版では、ダウンロードした <code>current-question-set.json</code> を
-            GitHubリポジトリの <code>public/data/</code> に上書きコミットすると本番反映されます。
+            GitHub連携が設定済みなら、ボタンを押すと選択中の出題セットに直接保存され、数十秒後に検定へ反映されます。
+            未設定の場合はJSONがダウンロードされるので、<code>public/data/current-question-set.json</code> に上書きコミットしてください。
           </div>
         </div>
         </div><!-- /tab-generate -->

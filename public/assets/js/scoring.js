@@ -49,7 +49,7 @@ export const RANK_COMMENT = {
   D: '業務利用の前に、基礎研修の受講を推奨します。',
 };
 
-/** AI理解度偏差値風スコア（30〜75にクランプ） */
+/** AI理解度偏差値スコア（30〜75にクランプ） */
 export function getAiLiteracyDeviation(scoreRate) {
   const value = 50 + (scoreRate - 70) / 2;
   return Math.max(30, Math.min(75, Math.round(value)));

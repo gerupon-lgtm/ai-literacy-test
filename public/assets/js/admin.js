@@ -145,6 +145,9 @@ function enterDashboard() {
 
   // 複数セット一覧を読み込む（GitHub連携が設定されていれば）
   loadSetsList();
+
+  // プール組み立てタブからもGitHub保存を使えるよう公開
+  window.saveQuestionSetFromPool = (out, alertId, prefixMsg) => saveQuestionSet(out, alertId, prefixMsg);
 }
 
 // ===== 複数セット管理 =====
@@ -550,15 +553,14 @@ function renderPreview(set, warnings) {
 
 function onAdopt() {
   if (!draftSet) return;
-  // 採用時にメタ情報を付与
   const out = {
     ...draftSet,
-    locked: true,
-    updatedAt: new Date().toISOString().slice(0, 10),
+    updatedAt: new Date().toISOString(),
   };
-  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
-  downloadBlob(blob, questionSetFileName());
-  showToast('JSONをダウンロードしました。GitHubへコミットしてください。');
+  // 内部状態も更新
+  questionSet = out;
+  fillCurrentSet();
+  saveQuestionSet(out, 'adopt-alert', '生成した設問セットを採用しました。');
 }
 
 function onDiscard() {
@@ -615,11 +617,38 @@ function onSaveSettings() {
   questionSet = out;
   fillCurrentSet();
 
+  saveQuestionSet(out, 'save-alert',
+    `設定（出題数 ${count}、配分${moreThanNeeded ? '・ランダム出題' : ''}）を反映しました。`);
+}
+
+// 設問セットを保存する共通処理。
+// GitHub連携が有効なら「選択中の出題セット(current)」に直接保存（コミット）。
+// 未設定ならJSONダウンロードにフォールバックする。
+async function saveQuestionSet(out, alertId, prefixMsg) {
+  // GitHub連携が使えるか試す（current への直接保存）
+  if (isApiConfigured()) {
+    setAlert(alertId, 'info', '<span class="spin"></span> GitHubに保存中…');
+    try {
+      await ghSaveCurrent(adminToken, out);
+      setAlert(alertId, 'info',
+        `${prefixMsg}GitHubの選択中の出題セットに保存しました。数十秒後に検定画面へ反映されます。`);
+      await loadSetsList();
+      return;
+    } catch (err) {
+      const msg = String(err.message || '');
+      if (msg.includes('GITHUB_NOT_CONFIGURED') || msg.includes('503')) {
+        // 未設定ならダウンロードにフォールバック（下へ）
+      } else {
+        setAlert(alertId, 'error', 'GitHub保存に失敗しました：' + escapeHtml(msg)
+          + '<br>代わりにJSONをダウンロードします。');
+      }
+    }
+  }
+  // フォールバック: ダウンロード
   const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
   downloadBlob(blob, questionSetFileName());
-  setAlert('save-alert', 'info',
-    `設定を反映した current-question-set.json を書き出しました（出題数 ${count}、配分${moreThanNeeded ? '・ランダム出題' : ''}）。`
-    + `<br>GitHubの <code>public/data/current-question-set.json</code> に上書きコミットすると本番反映されます。`);
+  setAlert(alertId, 'info',
+    `${prefixMsg}JSONを書き出しました。GitHubの <code>public/data/current-question-set.json</code> に上書きコミットすると本番反映されます。`);
 }
 
 // ---------- ユーティリティ ----------

@@ -334,10 +334,16 @@ function exportSet() {
     })),
   };
 
-  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
-  downloadBlob(blob, poolFileName());
-  setAlert('pool-output-alert', 'info',
-    `${selected.length} 問の出題セットを書き出しました（出題数 ${meta.questionCount}）。GitHubへコミットして反映してください。`);
+  // GitHub連携が使えるなら直接保存、無ければダウンロードにフォールバック
+  if (typeof window.saveQuestionSetFromPool === 'function') {
+    window.saveQuestionSetFromPool(out, 'pool-output-alert',
+      `${selected.length} 問の出題セット（出題数 ${meta.questionCount}）を作成しました。`);
+  } else {
+    const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+    downloadBlob(blob, poolFileName());
+    setAlert('pool-output-alert', 'info',
+      `${selected.length} 問の出題セットを書き出しました（出題数 ${meta.questionCount}）。GitHubへコミットして反映してください。`);
+  }
 }
 
 // ---- 描画 ----
