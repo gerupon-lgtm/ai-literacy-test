@@ -162,7 +162,10 @@ export default async function handler(req, res) {
       const curExisting = await getFile(cfg, CURRENT_PATH);
       await putFile(cfg, CURRENT_PATH, setFile.content, `Apply active set: ${setId}`, curExisting && curExisting.sha);
 
-      return res.status(200).json({ ok: true, activeSetId: setId });
+      // 切り替えたセットの内容も返す（管理画面の表示更新用）
+      let questionSet = null;
+      try { questionSet = JSON.parse(setFile.content); } catch { /* noop */ }
+      return res.status(200).json({ ok: true, activeSetId: setId, questionSet });
     }
 
     if (action === 'save_current') {

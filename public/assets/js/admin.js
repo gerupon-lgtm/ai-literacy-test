@@ -216,8 +216,18 @@ async function onActivateSet(setId) {
   if (!confirm(`出題セット「${setId}」を検定で使用するセットに切り替えますか？`)) return;
   setAlert('sets-alert', 'info', '<span class="spin"></span> 切り替え中…');
   try {
-    await ghActivateSet(adminToken, setId);
-    setAlert('sets-alert', 'info', `「${escapeHtml(setId)}」に切り替えました。数十秒後に検定画面へ反映されます。`);
+    const result = await ghActivateSet(adminToken, setId);
+    // 切り替えたセットの内容で、管理画面の表示（現在のセット・出題割合）を更新する
+    if (result && result.questionSet) {
+      questionSet = result.questionSet;
+      fillCurrentSet();
+      buildDistRowsFromSet();
+      renderDistTable();
+      recalcDistribution();
+    }
+    setAlert('sets-alert', 'info',
+      `「${escapeHtml(setId)}」に切り替えました。出題割合の表示もこのセットの内容になりました。`
+      + `数十秒後に検定画面へ反映されます。`);
     await loadSetsList();
   } catch (err) {
     setAlert('sets-alert', 'error', '切り替えに失敗しました：' + escapeHtml(err.message || ''));
