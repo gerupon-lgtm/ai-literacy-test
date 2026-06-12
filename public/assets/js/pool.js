@@ -413,6 +413,7 @@ function renderQuestion(q) {
   }).join('');
 
   const dupBadge = q.dupOf ? ` <span class="dup-badge">重複の可能性</span>` : '';
+  const catOptions = buildCategoryOptions(q.category);
 
   el.innerHTML = `
     <div class="pool-q-head">
@@ -426,8 +427,7 @@ function renderQuestion(q) {
             <option value="multiple" ${q.type === 'multiple' ? 'selected' : ''}>複数選択</option>
           </select>
           <select class="cat">
-            ${CATEGORY_DEFS.map((c) => `<option value="${escAttr(c.label)}" ${c.label === q.category ? 'selected' : ''}>${esc(c.label)}</option>`).join('')}
-            <option value="未分類" ${q.category === '未分類' ? 'selected' : ''}>未分類</option>
+            ${catOptions}
           </select>
           <select class="diff">
             <option value="basic" ${q.difficulty === 'basic' ? 'selected' : ''}>basic</option>
@@ -484,6 +484,32 @@ function autoGrow(el) {
   if (!el) return;
   el.style.height = 'auto';
   el.style.height = (el.scrollHeight + 2) + 'px';
+}
+
+// カテゴリ選択肢のHTMLを生成する。
+// 定義済みカテゴリ(CATEGORY_DEFS)に加え、プール内に実在するカテゴリ・
+// 現在の値・「未分類」も集約して選択肢に含める（ハードコードしない）。
+function buildCategoryOptions(current) {
+  const labels = [];
+  const seen = new Set();
+  const add = (label) => {
+    const v = String(label || '').trim();
+    if (!v || seen.has(v)) return;
+    seen.add(v);
+    labels.push(v);
+  };
+  // 1) 定義済みカテゴリ（標準の並び順を保つ）
+  CATEGORY_DEFS.forEach((c) => add(c.label));
+  // 2) プール内に実在するすべてのカテゴリ（独自カテゴリを拾う）
+  pool.forEach((q) => add(q.category));
+  // 3) 現在の値（プールが空でも確実に含める）
+  add(current);
+  // 4) 「未分類」を末尾に
+  add('未分類');
+
+  return labels.map((label) =>
+    `<option value="${escAttr(label)}" ${label === current ? 'selected' : ''}>${esc(label)}</option>`
+  ).join('');
 }
 
 function renderOutputSummary() {
