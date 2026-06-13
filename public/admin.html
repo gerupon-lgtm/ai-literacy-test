@@ -97,11 +97,11 @@
           <h2 class="section-title">出題設定</h2>
           <div class="field">
             <label for="set-count">出題数</label>
-            <select id="set-count" class="select">
-              <option value="10">10問</option>
-              <option value="20" selected>20問</option>
-              <option value="30">30問</option>
-            </select>
+            <input id="set-count" class="input" type="number" min="1" max="200" step="1" value="20">
+            <p class="muted" style="font-size:.8rem;margin-top:4px">
+              在庫（設問プールの問題数）を超える数は設定できません。
+            </p>
+            <div id="set-count-alert"></div>
           </div>
           <div class="field">
             <label for="set-difficulty">難易度</label>

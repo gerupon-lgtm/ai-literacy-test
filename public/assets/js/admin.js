@@ -65,7 +65,7 @@ function bindEvents() {
   $('btn-save-settings').addEventListener('click', onSaveSettings);
   $('btn-refresh-sets').addEventListener('click', loadSetsList);
   $('btn-reset-dist').addEventListener('click', () => { buildDistRowsFromSet(); renderDistTable(); recalcDistribution(); });
-  $('set-count').addEventListener('change', recalcDistribution);
+  $('set-count').addEventListener('input', () => { checkQuestionCount(); recalcDistribution(); });
   $('btn-generate').addEventListener('click', onGenerate);
   $('btn-diagnose').addEventListener('click', onDiagnose);
   $('btn-adopt').addEventListener('click', onAdopt);
@@ -131,6 +131,7 @@ function enterDashboard() {
   buildDistRowsFromSet();
   renderDistTable();
   recalcDistribution();
+  checkQuestionCount();
   window.scrollTo({ top: 0 });
 
   // プール組み立てタブが配分設定を引き継げるよう、現在の設定を公開する
@@ -227,10 +228,12 @@ async function onActivateSet(setId) {
       buildDistRowsFromSet();
       renderDistTable();
       recalcDistribution();
+      checkQuestionCount();
     }
     setAlert('sets-alert', 'info',
       `「${escapeHtml(setId)}」に切り替えました。出題割合の表示もこのセットの内容になりました。`
-      + `数十秒後に検定画面へ反映されます。`);
+      + `<br>検定ページへの反映にはGitHub Pagesの更新で<b>1〜2分ほどかかります</b>。`
+      + `反映後、受験者は検定ページを再読み込み（リロード）してください。`);
     await loadSetsList();
   } catch (err) {
     setAlert('sets-alert', 'error', '切り替えに失敗しました：' + escapeHtml(err.message || ''));
@@ -288,6 +291,32 @@ function renderDistTable() {
     });
     inp.addEventListener('change', recalcDistribution);
   });
+}
+
+// 出題数が在庫（設問プールの数）を超えていないかチェックし、アラートを表示する。
+// 超過時は true を返す。
+function checkQuestionCount() {
+  const input = $('set-count');
+  const alertEl = $('set-count-alert');
+  const count = parseInt(input.value, 10) || 0;
+  const available = (questionSet && questionSet.questions && questionSet.questions.length) || 0;
+
+  if (count < 1) {
+    if (alertEl) alertEl.innerHTML = '<div class="alert alert-warn">出題数は1以上にしてください。</div>';
+    return true;
+  }
+  if (available > 0 && count > available) {
+    if (alertEl) {
+      alertEl.innerHTML =
+        `<div class="alert alert-error">`
+        + `出題数 <b>${count}</b> 問が、現在の設問数（在庫 <b>${available}</b> 問）を超えています。`
+        + `出題数を ${available} 以下にするか、設問を追加してください。`
+        + `</div>`;
+    }
+    return true;
+  }
+  if (alertEl) alertEl.innerHTML = '';
+  return false;
 }
 
 function recalcDistribution() {
@@ -631,7 +660,7 @@ async function saveQuestionSet(out, alertId, prefixMsg) {
     try {
       await ghSaveCurrent(adminToken, out);
       setAlert(alertId, 'info',
-        `${prefixMsg}GitHubの選択中の出題セットに保存しました。数十秒後に検定画面へ反映されます。`);
+        `${prefixMsg}GitHubの選択中の出題セットに保存しました。検定ページへの反映にはGitHub Pagesの更新で1〜2分ほどかかります。`);
       await loadSetsList();
       return;
     } catch (err) {

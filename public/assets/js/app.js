@@ -25,7 +25,10 @@ async function init() {
   cacheEls();
   bindEvents();
   try {
-    const res = await fetch(QUESTION_SET_URL, { cache: 'no-store' });
+    // キャッシュバスター（タイムスタンプ）を付けてCDN/ブラウザの古いキャッシュを回避し、
+    // セット切替直後でも最新の設問データを取得しやすくする。
+    const url = `${QUESTION_SET_URL}?t=${Date.now()}`;
+    const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('設問データを取得できませんでした。');
     questionSet = await res.json();
     fillTopMeta(); // 内部で出題セットを検証し、開始ボタンの有効/無効を制御
