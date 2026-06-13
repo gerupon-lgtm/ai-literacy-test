@@ -70,13 +70,13 @@ export function renderRadar(canvas, labels, data) {
             stepSize: 20,
             color: COLORS.tick,
             backdropColor: 'transparent',
-            font: { size: 10, family: 'Roboto Mono, monospace' },
+            font: { size: 10, family: '"Sawarabi Gothic", sans-serif' },
           },
           grid: { color: COLORS.grid },
           angleLines: { color: COLORS.angle },
           pointLabels: {
             color: COLORS.label,
-            font: { size: 12, family: 'Zen Kaku Gothic New, sans-serif', weight: '600' },
+            font: { size: 12, family: '"Sawarabi Gothic", sans-serif', weight: '600' },
           },
         },
       },
@@ -157,21 +157,21 @@ export async function resultToPngBlob(summary) {
   // ===== ヘッダー（ランク・スコア） =====
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = accent;
-  ctx.font = 'bold 15px sans-serif';
+  ctx.font = 'bold 15px "Sawarabi Gothic", sans-serif';
   ctx.fillText('AIリテラシー検定 結果', 32, 40);
 
   // ランク（大きく）
   ctx.fillStyle = ink;
-  ctx.font = 'bold 64px sans-serif';
+  ctx.font = 'bold 64px "Sawarabi Gothic", sans-serif';
   ctx.fillText(String(summary.rank || '-'), 32, 110);
 
   // スコア
-  ctx.font = 'bold 30px sans-serif';
+  ctx.font = 'bold 30px "Sawarabi Gothic", sans-serif';
   ctx.fillText(`${summary.scoreRate}点`, 130, 110);
 
   // 補足情報（正答数・偏差値・合格ライン）
   ctx.fillStyle = muted;
-  ctx.font = '14px sans-serif';
+  ctx.font = '14px "Sawarabi Gothic", sans-serif';
   const correct = `正答 ${summary.correctCount}/${summary.totalQuestions}`;
   const dev = (summary.aiLiteracyDeviation != null) ? `偏差値 ${summary.aiLiteracyDeviation}` : '';
   const pass = (summary.passingScore != null) ? `合格ライン ${summary.passingScore}%` : '';
@@ -201,14 +201,14 @@ export async function resultToPngBlob(summary) {
   // ===== カテゴリ別 横棒グラフ =====
   const barTop = headerH + radarH + 10;
   ctx.fillStyle = ink;
-  ctx.font = 'bold 15px sans-serif';
+  ctx.font = 'bold 15px "Sawarabi Gothic", sans-serif';
   ctx.fillText('カテゴリ別 理解度', 32, barTop + 8);
 
   const labelW = 130;
   const barX = 32 + labelW;
   const barMaxW = W - barX - 70;
   let y = barTop + 36;
-  ctx.font = '13px sans-serif';
+  ctx.font = '13px "Sawarabi Gothic", sans-serif';
   cats.forEach((c) => {
     const pct = Math.max(0, Math.min(100, c.ratePercent || 0));
     // ラベル

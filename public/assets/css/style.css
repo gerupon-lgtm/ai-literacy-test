@@ -46,9 +46,10 @@
   --input-bg: #ffffff;
 
   /* ---- タイポ ---- */
-  --font-sans: "Zen Kaku Gothic New", "Hiragino Kaku Gothic ProN",
+  --font-sans: "Sawarabi Gothic", "Hiragino Kaku Gothic ProN",
                "Yu Gothic", "Meiryo", system-ui, sans-serif;
-  --font-mono: "DSEG", "Roboto Mono", "SFMono-Regular", "Consolas",
+  /* 数値・ラベルも Sawarabi Gothic に統一。桁揃えが要る箇所のため等幅を保険でフォールバック */
+  --font-mono: "Sawarabi Gothic", "SFMono-Regular", "Consolas",
                "Courier New", monospace;
 
   /* ---- レイアウト ---- */
