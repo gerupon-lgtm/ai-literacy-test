@@ -290,14 +290,24 @@
             <h2 class="section-title">出題セットを書き出し</h2>
             <div id="pool-output-summary" class="muted" style="font-size:.86rem;margin-bottom:12px"></div>
             <div id="pool-source-note" class="alert alert-info" style="font-size:.84rem;display:none"></div>
+
+            <div class="field" id="pool-save-name-field">
+              <label for="pool-save-name">GitHub保存先のセット名（ファイル名）</label>
+              <input id="pool-save-name" class="input" type="text" placeholder="例: ai-literacy-2026-06-custom">
+              <p class="muted" style="font-size:.8rem;margin-top:4px">
+                英数字・ハイフン・アンダースコアが使えます。<code>sets/&lt;この名前&gt;.json</code> として保存されます。
+                同名のセットがあれば上書きされます。
+              </p>
+            </div>
+
             <div id="pool-output-alert"></div>
             <div class="btn-row">
-              <button id="btn-pool-gh-save" class="btn btn-primary hidden" type="button">GitHubのセットに上書き保存（push）</button>
+              <button id="btn-pool-gh-save" class="btn btn-primary" type="button">この名前でGitHubに保存（push）</button>
               <button id="btn-pool-export" class="btn btn-ghost" type="button">JSONをダウンロード</button>
             </div>
             <div class="alert alert-info" style="margin-top:14px">
-              <b>GitHubに上書き保存</b>すると、読み込んだ元のセットに直接pushされます（保存のみ。検定で使うには「出題セットの保存・切替」で切り替えてください）。
-              <br><b>ダウンロード</b>はJSONファイルとして保存します。
+              <b>GitHubに保存</b>すると <code>public/data/sets/</code> に直接pushされます（保存のみ。検定で使うには「出題セットの保存・切替」で切り替えてください）。
+              <br><b>ダウンロード</b>はJSONファイルとして手元に保存します。
             </div>
           </div>
         </div><!-- /tab-pool -->

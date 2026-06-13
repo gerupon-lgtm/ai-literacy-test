@@ -335,34 +335,85 @@ function absorbSetMeta(qs) {
   $('pool-randomize-c').checked = !!meta.randomizeChoices;
 }
 
-// GitHub保存ボタンの表示・ラベルを更新
+// GitHub保存セクションの表示を更新（保存先名の初期値・編集元の案内）
 function updateGhSaveButton() {
-  const btn = $('btn-pool-gh-save');
   const note = $('pool-source-note');
-  if (!btn) return;
-  if (sourceSetId) {
-    btn.classList.remove('hidden');
-    btn.textContent = `GitHubのセット「${sourceSetId}」に上書き保存（push）`;
-    if (note) {
+  const nameInput = $('pool-save-name');
+  // 保存先名の初期値を決める（未入力なら）
+  if (nameInput && !nameInput.value.trim()) {
+    nameInput.value = defaultSaveName();
+  }
+  if (note) {
+    if (sourceSetId) {
       note.style.display = '';
-      note.innerHTML = `編集中: GitHubセット <b>${esc(sourceSetId)}</b>（上書き保存先）`;
+      note.innerHTML = `GitHubセット <b>${esc(sourceSetId)}</b> を読み込んで編集中。`
+        + `下の保存先名を変えれば別セットとして保存できます。`;
+    } else {
+      note.style.display = 'none';
     }
-  } else {
-    btn.classList.add('hidden');
-    if (note) note.style.display = 'none';
   }
 }
 
+// 保存先セット名の既定値を決める
+function defaultSaveName() {
+  // GitHub読み込み元があればそのID、なければ Set ID 欄、それも無ければ汎用名
+  if (sourceSetId) return sourceSetId;
+  const setid = ($('pool-setid').value || '').trim();
+  if (setid) return sanitizeSetName(setid);
+  return `custom-${jstStampShort()}`;
+}
+
+// セット名をファイル名に使える形へ（英数・ハイフン・アンダースコアのみ）
+function sanitizeSetName(raw) {
+  return String(raw || '').trim()
+    .replace(/[^a-zA-Z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 64);
+}
+
+function jstStampShort() {
+  const p = new Intl.DateTimeFormat('ja-JP', {
+    timeZone: 'Asia/Tokyo', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date()).reduce((a, x) => { a[x.type] = x.value; return a; }, {});
+  return `${p.year}${p.month}${p.day}${p.hour}${p.minute}`;
+}
+
 async function onGhSave() {
-  if (!sourceSetId) { setAlert('pool-output-alert', 'error', '読み込み元のGitHubセットがありません。'); return; }
+  if (!isApiConfigured()) {
+    setAlert('pool-output-alert', 'warn',
+      'GitHub保存は本番（Vercel接続）環境でのみ利用できます。ローカル確認モードでは「JSONをダウンロード」をお使いください。');
+    return;
+  }
   const out = buildExportObject();
-  if (!out) return; // エラーはbuildExportObject内で表示
-  if (!confirm(`GitHubのセット「${sourceSetId}」に上書き保存（push）しますか？`)) return;
+  if (!out) return; // 検証エラーはbuildExportObject内で表示
+
+  // 保存先名（入力欄）を正規化
+  const nameInput = $('pool-save-name');
+  const rawName = (nameInput && nameInput.value || '').trim() || defaultSaveName();
+  const saveId = sanitizeSetName(rawName);
+  if (!saveId) {
+    setAlert('pool-output-alert', 'error', '保存先のセット名を入力してください（英数字・ハイフン・アンダースコア）。');
+    return;
+  }
+  if (nameInput) nameInput.value = saveId; // 正規化後の名前を反映
+  // questionSetId もこの名前に合わせる
+  out.questionSetId = saveId;
+
+  const overwrite = (saveId === sourceSetId);
+  const msg = overwrite
+    ? `GitHubのセット「${saveId}」に上書き保存（push）しますか？`
+    : `GitHubに新しいセット「${saveId}」として保存（push）しますか？\n（同名があれば上書きされます）`;
+  if (!confirm(msg)) return;
+
   setAlert('pool-output-alert', 'info', '<span class="spin"></span> GitHubに保存中…');
   try {
-    await ghSaveSet(getAdminToken(), sourceSetId, out);
+    await ghSaveSet(getAdminToken(), saveId, out);
+    sourceSetId = saveId; // 以後はこのセットを編集中とみなす
+    updateGhSaveButton();
     setAlert('pool-output-alert', 'info',
-      `GitHubのセット「${esc(sourceSetId)}」に上書き保存しました（push完了）。`
+      `GitHubのセット「${esc(saveId)}」に保存しました（push完了）。`
       + `検定で使うには「出題セットの保存・切替」で切り替えてください。`);
   } catch (err) {
     setAlert('pool-output-alert', 'error', 'GitHub保存に失敗しました：' + esc(err.message || ''));
@@ -519,6 +570,7 @@ function render() {
   renderList();
   updateCountNote();
   renderOutputSummary();
+  updateGhSaveButton();
 }
 
 function renderStats() {
