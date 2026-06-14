@@ -44,6 +44,7 @@ function cacheEls() {
     screens: {
       top: id('screen-top'),
       quiz: id('screen-quiz'),
+      loading: id('screen-loading'),
       result: id('screen-result'),
     },
     metaCount: id('meta-count'), metaTime: id('meta-time'), metaPass: id('meta-pass'),
@@ -237,9 +238,43 @@ function goTo(i) {
 async function finishQuiz() {
   summary = buildResultSummary(quiz.questions, quiz.answers);
   aiComment = '';
+
+  // 採点・集計中のローディング画面を表示
+  showScreen('loading');
+  window.scrollTo({ top: 0 });
+
+  // AIコメントを取得（タイムアウト付き）。結果のレンダリングはこの後に行うので、
+  // コメントが揃った状態で結果画面を表示できる。
+  await prepareAiComment();
+
+  // 結果を描画して結果画面へ
   renderResult();
+  setAiComment(aiComment);
   showScreen('result');
-  requestAiComment();
+  window.scrollTo({ top: 0 });
+}
+
+// AIコメントを準備する（取得 or フォールバック）。
+// 最大待機時間を設け、それを超えたらフォールバック文面で先に進む。
+async function prepareAiComment() {
+  if (!isApiConfigured()) {
+    aiComment = fallbackComment(summary);
+    return;
+  }
+  const sub = document.getElementById('loading-sub');
+  if (sub) sub.textContent = 'AIがあなたの理解度を分析し、コメントを作成しています…';
+
+  const TIMEOUT_MS = 25000;
+  try {
+    const comment = await Promise.race([
+      analyzeResult(summary),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS)),
+    ]);
+    aiComment = comment || fallbackComment(summary);
+  } catch (err) {
+    console.warn('AIコメント生成に失敗またはタイムアウト:', err);
+    aiComment = fallbackComment(summary);
+  }
 }
 
 function renderResult() {
@@ -317,23 +352,6 @@ function isAnswerCorrect(q, sel) {
 }
 
 // ---------- AIコメント ----------
-async function requestAiComment() {
-  // API未設定ならフォールバック文面
-  if (!isApiConfigured()) {
-    aiComment = fallbackComment(summary);
-    setAiComment(aiComment);
-    return;
-  }
-  try {
-    const comment = await analyzeResult(summary);
-    aiComment = comment || fallbackComment(summary);
-  } catch (err) {
-    console.warn('AIコメント生成に失敗:', err);
-    aiComment = fallbackComment(summary);
-  }
-  setAiComment(aiComment);
-}
-
 function setAiComment(text) {
   els.aiComment.classList.remove('loading');
   // 先頭の空白・改行（全角スペース含む）を除去して表示位置を整える。
