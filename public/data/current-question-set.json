@@ -1,7 +1,7 @@
 {
   "questionSetId": "ai-literacy-it-engineer-2026-06-standard",
   "version": "1.0.0",
-  "updatedAt": "2026-06-13T08:47:53.280Z",
+  "updatedAt": "2026-06-13T08:45:57.695Z",
   "settings": {
     "questionCount": 20,
     "passingScore": 70,
@@ -11,41 +11,40 @@
     "categoryDistribution": [
       {
         "categoryId": "C-001",
-        "weight": 8,
+        "weight": 13,
         "priority": 1
       },
       {
         "categoryId": "C-002",
-        "weight": 5,
+        "weight": 7,
         "priority": 2
       },
       {
         "categoryId": "C-003",
-        "weight": 10,
+        "weight": 11,
         "priority": 3
       },
       {
         "categoryId": "C-004",
-        "weight": 9,
+        "weight": 7,
         "priority": 4
       },
       {
         "categoryId": "C-005",
-        "weight": 6,
+        "weight": 4,
         "priority": 5
       },
       {
         "categoryId": "C-006",
-        "weight": 6,
+        "weight": 7,
         "priority": 6
       },
       {
         "categoryId": "C-007",
-        "weight": 5,
+        "weight": 3,
         "priority": 7
       }
-    ],
-    "difficulty": "standard"
+    ]
   },
   "categories": [
     {
