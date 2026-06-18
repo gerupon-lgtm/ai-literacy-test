@@ -122,6 +122,14 @@ function fillTopMeta() {
   els.metaTime.innerHTML = `${estimateMinutes(count)}<small>分</small>`;
   els.metaPass.innerHTML = `${s.passingScore ?? 70}<small>%</small>`;
 
+  // 出題セット名を表示
+  const nameEl = document.getElementById('set-name-display');
+  if (nameEl) {
+    const setName = questionSet.questionSetId || '';
+    const ver = questionSet.version ? ` (v${questionSet.version})` : '';
+    nameEl.textContent = setName ? `出題セット: ${setName}${ver}` : '';
+  }
+
   // 出題セットが十分かを検証し、不足なら開始をブロック
   const check = validateQuestionSet(questionSet);
   const alertEl = document.getElementById('start-alert');

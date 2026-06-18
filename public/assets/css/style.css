@@ -990,3 +990,17 @@ button { font-family: inherit; }
   max-width: 30em;
   line-height: 1.7;
 }
+
+/* ===== トップ画面の出題セット名 ===== */
+.set-name-display {
+  display: inline-block;
+  font-size: 0.82rem;
+  color: var(--teal-400, #3f51b5);
+  background: rgba(63,81,181,0.08);
+  border: 1px solid rgba(63,81,181,0.22);
+  border-radius: 6px;
+  padding: 4px 12px;
+  margin: 0 0 14px;
+  font-weight: 500;
+}
+.set-name-display:empty { display: none; }
