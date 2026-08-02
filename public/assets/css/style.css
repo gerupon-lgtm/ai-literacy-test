@@ -1004,3 +1004,11 @@ button { font-family: inherit; }
   font-weight: 500;
 }
 .set-name-display:empty { display: none; }
+
+/* ===== フッター著作権表記 ===== */
+.app-footer .copyright {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--muted, #5b6b78);
+  letter-spacing: 0.02em;
+}
