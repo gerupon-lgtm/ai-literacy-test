@@ -1,19 +1,25 @@
 // =========================================================
 // admin.js  管理者コンソール
 // =========================================================
-import { resolveCategoryAllocation } from './scoring.js';
-import { downloadBlob } from './export.js';
+import { resolveCategoryAllocation } from './scoring.js?v=1.2.0';
+import { downloadBlob } from './export.js?v=1.2.0';
 import { adminLogin, generateQuestions, listModels, isApiConfigured,
-  ghListSets, ghActivateSet, ghSaveCurrent } from './apiClient.js';
-import { initPool } from './pool.js';
-import { pickBrandFields, resolveBrand } from './branding.js';
-import { CATEGORY_DEFS } from './categories.js';
+  ghListSets, ghActivateSet, ghSaveCurrent, ghSetEnabled, ghDeleteSet } from './apiClient.js?v=1.2.0';
+import { initPool } from './pool.js?v=1.2.0';
+import { pickBrandFields, resolveBrand } from './branding.js?v=1.2.0';
+import { CATEGORY_DEFS } from './categories.js?v=1.2.0';
+import { createSetItem, addSetButton } from './set-list.js?v=1.2.0';
+import { questionSetErrors } from './question-set.js?v=1.2.0';
 
 const QUESTION_SET_URL = 'data/current-question-set.json';
 
 let questionSet = null;
 let adminToken = null;
 let draftSet = null;       // 生成された設問案
+let currentRevision = null;
+let currentStorageId = null;
+let listRevision = null;
+let mutationPending = false;
 let distRows = [];         // 配分行 [{categoryId,name,weight,priority}]
 
 const $ = (id) => document.getElementById(id);
@@ -74,7 +80,9 @@ function bindEvents() {
   $('btn-logout-header').addEventListener('click', onLogout);
   $('btn-recalc').addEventListener('click', recalcDistribution);
   $('btn-save-settings').addEventListener('click', onSaveSettings);
-  $('btn-refresh-sets').addEventListener('click', loadSetsList);
+  $('btn-refresh-sets').addEventListener('click', () => {
+    if (confirm('一覧と現在の設定を再読み込みします。AI生成タブの未保存の設定は破棄されます。よろしいですか？')) loadSetsList(true);
+  });
   $('btn-reset-dist').addEventListener('click', () => { buildDistRowsFromSet(); renderDistTable(); recalcDistribution(); });
   $('set-count').addEventListener('input', () => { checkQuestionCount(); recalcDistribution(); });
   $('btn-generate').addEventListener('click', onGenerate);
@@ -127,6 +135,7 @@ async function onLogin() {
 
 function onLogout() {
   adminToken = null;
+  currentRevision = null; currentStorageId = null; listRevision = null;
   $('admin-pass').value = '';
   $('admin-dash').classList.add('hidden');
   $('admin-login').classList.remove('hidden');
@@ -147,8 +156,10 @@ function enterDashboard() {
 
   // プール組み立てタブが配分設定を引き継げるよう、現在の設定を公開する
   window.getAdminSettings = () => ({
+    questionSetId: questionSet?.questionSetId,
+    categories: questionSet?.categories || [],
     questionCount: parseInt($('set-count').value, 10) || 20,
-    passingScore: parseInt($('set-pass').value, 10) || 70,
+    passingScore: numberInput('set-pass', 70),
     difficulty: $('set-difficulty').value,
     categoryDistribution: distRows.map((r) => ({
       categoryId: r.categoryId, weight: r.weight, priority: r.priority,
@@ -156,14 +167,21 @@ function enterDashboard() {
   });
 
   // 複数セット一覧を読み込む（GitHub連携が設定されていれば）
-  loadSetsList();
+  loadSetsList(true);
+  window.onPoolSaved = async result => {
+    if (result.activeSetId === result.setId && result.questionSet) {
+      questionSet = result.questionSet; currentRevision = result.revision; currentStorageId = result.activeSetId;
+      fillCurrentSet(); buildDistRowsFromSet(); renderDistTable(); recalcDistribution(); checkQuestionCount();
+    }
+    await loadSetsList();
+  };
 
   // プール組み立てタブからもGitHub保存を使えるよう公開
   window.saveQuestionSetFromPool = (out, alertId, prefixMsg) => saveQuestionSet(out, alertId, prefixMsg);
 }
 
 // ===== 複数セット管理 =====
-async function loadSetsList() {
+async function loadSetsList(syncCurrent = false) {
   if (!isApiConfigured()) {
     setAlert('github-status', 'info',
       'GitHub連携を使うには、本番（Vercel接続）環境で操作してください。ローカル確認モードでは利用できません。');
@@ -174,6 +192,15 @@ async function loadSetsList() {
     const data = await ghListSets(adminToken);
     clearAlert('github-status');
     const sets = data.sets || [];
+    listRevision = data.revision;
+    if (syncCurrent === true) {
+      currentRevision = data.revision; currentStorageId = data.activeSetId;
+      if (data.currentQuestionSet) {
+        questionSet = data.currentQuestionSet;
+        fillCurrentSet(); buildDistRowsFromSet(); renderDistTable(); recalcDistribution(); checkQuestionCount();
+      }
+    }
+    window.dispatchEvent(new CustomEvent('set-list-updated', { detail: data }));
     renderSetsList(sets, data.activeSetId);
     if (sets.length === 0) {
       setAlert('sets-alert', 'info',
@@ -182,7 +209,7 @@ async function loadSetsList() {
     } else {
       setAlert('sets-alert', 'info',
         `${sets.length} 件の出題セットを読み込みました`
-        + (data.activeSetId ? `（使用中: ${escapeHtml(data.activeSetId)}）` : '（使用中の指定なし）') + '。');
+        + (data.activeSetId ? `（使用中の保存先: ${escapeHtml(data.activeSetId)}）` : '（使用中の指定なし）') + '。' + (data.warnings || []).map(escapeHtml).join('<br>'));
     }
   } catch (err) {
     const msg = String(err.message || '');
@@ -198,57 +225,60 @@ async function loadSetsList() {
 }
 
 function renderSetsList(sets, activeSetId) {
-  const container = $('sets-list');
-  if (!sets.length) {
-    container.innerHTML = '<p class="muted" style="font-size:.86rem">保存された出題セットはまだありません。AI生成またはプール組み立てで作成し、保存してください。</p>';
-    return;
-  }
-  container.innerHTML = '';
-  sets.forEach((s) => {
-    const isActive = s.id === activeSetId;
-    const item = document.createElement('div');
-    item.className = 'set-item' + (isActive ? ' active' : '');
-    const updated = s.updatedAt ? formatJst(s.updatedAt) : '—';
-    item.innerHTML =
-      '<div class="set-info">'
-      + '<div class="set-name">' + escapeHtml(s.questionSetId || s.id) + '</div>'
-      + '<div class="set-meta">'
-      + 'ID: ' + escapeHtml(s.id) + ' ／ ver ' + escapeHtml(s.version || '—')
-      + ' ／ 出題' + s.questionCount + '問 ／ 在庫' + s.poolSize + '問 ／ ' + escapeHtml(updated)
-      + '</div></div>'
-      + (isActive
-        ? '<span class="active-badge">使用中</span>'
-        : '<button class="btn btn-primary btn-activate" type="button" data-id="' + escapeHtml(s.id) + '">このセットを使う</button>');
+  const container = $('sets-list'); container.innerHTML = '';
+  if (!sets.length) { container.textContent = '保存済みのセットはありません。'; return; }
+  sets.forEach(set => {
+    const { item, actions } = createSetItem(set, activeSetId);
+    const active = set.id === activeSetId;
+    if (!active && set.enabled !== false) addSetButton(actions, 'このセットを使う', () => onActivateSet(set.id));
+    addSetButton(actions, set.enabled === false ? '再有効化' : '無効にする',
+      () => changeSet(set, 'enabled'), active);
+    addSetButton(actions, '削除', () => changeSet(set, 'delete'), active);
+    if (active) {
+      const note = document.createElement('small'); note.textContent = '削除・無効化は別セットへ切り替えてから操作できます。'; actions.appendChild(note);
+    }
     container.appendChild(item);
-  });
-  // 切替ボタン
-  container.querySelectorAll('.btn-activate').forEach((btn) => {
-    btn.addEventListener('click', () => onActivateSet(btn.dataset.id));
   });
 }
 
-async function onActivateSet(setId) {
-  if (!confirm(`出題セット「${setId}」を検定で使用するセットに切り替えますか？`)) return;
-  setAlert('sets-alert', 'info', '<span class="spin"></span> 切り替え中…');
+async function changeSet(set, action) {
+  if (mutationPending) return;
+  const deleting = action === 'delete';
+  const text = deleting
+    ? '保存先「' + set.id + '」（Set ID: ' + (set.questionSetId || '未設定') + '）を削除しますか？\nアプリ内のごみ箱はありません。復元はGitHubの履歴から行います。編集中のプールは残ります。'
+    : '「' + set.id + '」を' + (set.enabled === false ? '再有効化' : '無効化') + 'しますか？設問データは残ります。';
+  if (!confirm(text)) return;
+  await mutateSet(async () => {
+    if (deleting) return ghDeleteSet(adminToken, set.id, listRevision);
+    return ghSetEnabled(adminToken, set.id, set.enabled === false, listRevision);
+  }, deleting ? 'セットを削除しました。' : '有効・無効の状態を更新しました。');
+}
+
+async function mutateSet(operation, message) {
+  if (mutationPending) return;
+  mutationPending = true;
+  $('sets-list').querySelectorAll('button').forEach(b => { b.disabled = true; });
   try {
-    const result = await ghActivateSet(adminToken, setId);
-    // 切り替えたセットの内容で、管理画面の表示（現在のセット・出題割合）を更新する
-    if (result && result.questionSet) {
-      questionSet = result.questionSet;
-      fillCurrentSet();
-      buildDistRowsFromSet();
-      renderDistTable();
-      recalcDistribution();
-      checkQuestionCount();
-    }
-    setAlert('sets-alert', 'info',
-      `「${escapeHtml(setId)}」に切り替えました。出題割合の表示もこのセットの内容になりました。`
-      + `<br>検定ページへの反映にはGitHub Pagesの更新で<b>1〜2分ほどかかります</b>。`
-      + `反映後、受験者は検定ページを再読み込み（リロード）してください。`);
+    const previous = listRevision;
+    const result = await operation();
+    if (currentRevision === previous) currentRevision = result?.revision || currentRevision;
     await loadSetsList();
+    setAlert('sets-alert', 'info', message);
   } catch (err) {
-    setAlert('sets-alert', 'error', '切り替えに失敗しました：' + escapeHtml(err.message || ''));
-  }
+    await loadSetsList();
+    setAlert('sets-alert', 'error', escapeHtml(err.message || '操作に失敗しました。') + '<br>状態を確認してから再操作してください。');
+  } finally { mutationPending = false; }
+}
+
+async function onActivateSet(setId) {
+  if (mutationPending || !confirm('出題セット「' + setId + '」に切り替えますか？AI生成タブの未保存の設定は破棄されます。')) return;
+  await mutateSet(async () => {
+    const result = await ghActivateSet(adminToken, setId, listRevision);
+    questionSet = result.questionSet;
+    currentRevision = result.revision; currentStorageId = result.activeSetId;
+    fillCurrentSet(); buildDistRowsFromSet(); renderDistTable(); recalcDistribution(); checkQuestionCount();
+    return result;
+  }, '切り替えました。GitHubからの自動デプロイ完了後、受験ページを再読み込みしてください。');
 }
 
 // ---------- 現在の設問セット表示 ----------
@@ -536,7 +566,7 @@ function buildDraftFromQuestions(questions, settings, current, meta) {
     generatedBy: meta && meta.provider ? `${meta.provider}/${meta.model}` : 'ai',
     settings: {
       questionCount,
-      passingScore: settings.passingScore || 70,
+      passingScore: settings.passingScore ?? 70,
       difficulty: settings.difficulty || 'standard',
       randomizeChoices: (current && current.settings && current.settings.randomizeChoices) ?? true,
       randomizeQuestions,
@@ -555,7 +585,7 @@ function buildGeneratePayload(instruction) {
     instruction,
     settings: {
       questionCount: count,
-      passingScore: parseInt($('set-pass').value, 10) || 70,
+      passingScore: numberInput('set-pass', 70),
       difficulty: $('set-difficulty').value,
       categoryDistributionMode: 'weighted',
       categoryDistribution: distRows.map((r) => ({
@@ -599,9 +629,6 @@ function onAdopt() {
     ...draftSet,
     updatedAt: new Date().toISOString(),
   };
-  // 内部状態も更新
-  questionSet = out;
-  fillCurrentSet();
   saveQuestionSet(out, 'adopt-alert', '生成した設問セットを採用しました。');
 }
 
@@ -621,7 +648,7 @@ function onSaveSettings() {
   }
 
   const count = parseInt($('set-count').value, 10) || 20;
-  const pass = parseInt($('set-pass').value, 10) || 70;
+  const pass = numberInput('set-pass', 70);
   const difficulty = $('set-difficulty').value;
   const distribution = distRows.map((r) => ({
     categoryId: r.categoryId, weight: r.weight, priority: r.priority,
@@ -655,10 +682,6 @@ function onSaveSettings() {
       categoryDistribution: distribution,
     },
   };
-  // 表示用に内部状態も更新（再書き出し時に最新が反映されるよう）
-  questionSet = out;
-  fillCurrentSet();
-
   saveQuestionSet(out, 'save-alert',
     `設定（出題数 ${count}、配分${moreThanNeeded ? '・ランダム出題' : ''}）を反映しました。`);
 }
@@ -667,30 +690,33 @@ function onSaveSettings() {
 // GitHub連携が有効なら「選択中の出題セット(current)」に直接保存（コミット）。
 // 未設定ならJSONダウンロードにフォールバックする。
 async function saveQuestionSet(out, alertId, prefixMsg) {
-  // GitHub連携が使えるか試す（current への直接保存）
+  const errors = questionSetErrors(out);
+  if (errors.length) { setAlert(alertId, 'error', errors.map(escapeHtml).join('<br>')); return; }
+  if (mutationPending) { setAlert(alertId, 'warn', '他の保存処理が終わるまでお待ちください。'); return; }
   if (isApiConfigured()) {
-    setAlert(alertId, 'info', '<span class="spin"></span> GitHubに保存中…');
+    mutationPending = true;
+    $('btn-save-settings').disabled = true; $('btn-adopt').disabled = true;
     try {
-      await ghSaveCurrent(adminToken, out);
-      setAlert(alertId, 'info',
-        `${prefixMsg}GitHubの選択中の出題セットに保存しました。検定ページへの反映にはGitHub Pagesの更新で1〜2分ほどかかります。`);
-      await loadSetsList();
-      return;
+      setAlert(alertId, 'info', '<span class="spin"></span> GitHubに保存中…');
+      const result = await ghSaveCurrent(adminToken, out, currentRevision, currentStorageId);
+      currentRevision = result.revision; questionSet = out; fillCurrentSet();
+      setAlert(alertId, 'info', escapeHtml(prefixMsg) + '公開用と保管用の両方へ保存しました。自動デプロイ完了後に受験ページを再読み込みしてください。');
+      await loadSetsList(); return;
     } catch (err) {
-      const msg = String(err.message || '');
-      if (msg.includes('GITHUB_NOT_CONFIGURED') || msg.includes('503')) {
-        // 未設定ならダウンロードにフォールバック（下へ）
-      } else {
-        setAlert(alertId, 'error', 'GitHub保存に失敗しました：' + escapeHtml(msg)
-          + '<br>代わりにJSONをダウンロードします。');
-      }
+      setAlert(alertId, 'error', escapeHtml(err.message || '保存に失敗しました。') + '<br>編集内容は画面に残しています。自動でダウンロードや再保存は行いません。');
+      return;
+    } finally {
+      mutationPending = false; $('btn-save-settings').disabled = false; $('btn-adopt').disabled = false;
     }
   }
-  // フォールバック: ダウンロード
-  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
-  downloadBlob(blob, questionSetFileName());
-  setAlert(alertId, 'info',
-    `${prefixMsg}JSONを書き出しました。GitHubの <code>public/data/current-question-set.json</code> に上書きコミットすると本番反映されます。`);
+  questionSet = out; fillCurrentSet();
+  downloadBlob(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }), questionSetFileName());
+  setAlert(alertId, 'info', escapeHtml(prefixMsg) + 'ローカル確認モードのためJSONをダウンロードしました。');
+}
+
+function numberInput(id, fallback) {
+  const value = Number.parseInt($(id).value, 10);
+  return Number.isFinite(value) ? value : fallback;
 }
 
 // ---------- ユーティリティ ----------

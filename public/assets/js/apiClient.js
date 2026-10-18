@@ -223,16 +223,24 @@ export async function ghGetSet(adminToken, setId) {
 }
 
 /** セットを sets/<id>.json に保存 */
-export async function ghSaveSet(adminToken, setId, questionSet) {
-  return postJson('github-save', { adminToken, action: 'save', setId, questionSet }, { timeout: 30000 });
+export async function ghSaveSet(adminToken, setId, questionSet, expectedRevision) {
+  return postJson('github-save', { adminToken, action: 'save', setId, questionSet, expectedRevision }, { timeout: 60000 });
 }
 
 /** 指定セットをアクティブにする（current にも反映） */
-export async function ghActivateSet(adminToken, setId) {
-  return postJson('github-save', { adminToken, action: 'activate', setId }, { timeout: 30000 });
+export async function ghActivateSet(adminToken, setId, expectedRevision) {
+  return postJson('github-save', { adminToken, action: 'activate', setId, expectedRevision }, { timeout: 60000 });
 }
 
 /** current-question-set.json を直接保存（単一セット運用の互換） */
-export async function ghSaveCurrent(adminToken, questionSet) {
-  return postJson('github-save', { adminToken, action: 'save_current', questionSet }, { timeout: 30000 });
+export async function ghSaveCurrent(adminToken, questionSet, expectedRevision, expectedActiveSetId) {
+  return postJson('github-save', { adminToken, action: 'save_current', questionSet, expectedRevision, expectedActiveSetId }, { timeout: 60000 });
+}
+
+export async function ghSetEnabled(adminToken, setId, enabled, expectedRevision) {
+  return postJson('github-save', { adminToken, action: 'set_enabled', setId, enabled, expectedRevision }, { timeout: 60000 });
+}
+
+export async function ghDeleteSet(adminToken, setId, expectedRevision) {
+  return postJson('github-save', { adminToken, action: 'delete', setId, expectedRevision }, { timeout: 60000 });
 }

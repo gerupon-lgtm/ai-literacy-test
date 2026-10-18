@@ -6,7 +6,7 @@ import { applyCors, handlePreflight, readJsonBody, callOpenRouter, buildAnalyzeS
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
-  applyCors(res);
+  applyCors(res, req);
 
   if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, code: 'METHOD_NOT_ALLOWED', message: 'POSTのみ対応しています。' });

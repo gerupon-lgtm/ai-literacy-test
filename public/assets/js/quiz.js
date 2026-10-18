@@ -1,7 +1,7 @@
 // =========================================================
 // quiz.js  出題セットの構築・状態管理
 // =========================================================
-import { resolveCategoryAllocation } from './scoring.js';
+import { resolveCategoryAllocation } from './scoring.js?v=1.2.0';
 
 /** 配列をFisher-Yatesでシャッフル（非破壊） */
 function shuffle(arr) {

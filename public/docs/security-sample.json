@@ -1,0 +1,93 @@
+{
+  "questionSetId": "security-sample",
+  "version": "1.0.0",
+  "title": "情報セキュリティ検定（サンプル）",
+  "theme": "情報セキュリティ",
+  "description": "メールや連絡への対応を、選択式で確認するサンプルです。",
+  "footerNote": "社内学習用のセルフチェックです。",
+  "resultNote": "※本結果は学習用のセルフチェックです。",
+  "perfectMessage": "全問正解です。基本的な対応を理解できています。",
+  "rankComments": {
+    "S": "基本事項を十分に理解できています。",
+    "A": "よく理解できています。迷った点を復習しましょう。",
+    "B": "概ね理解できています。解説で確認しましょう。",
+    "C": "基本事項をもう一度確認しましょう。",
+    "D": "解説を読み、基本から確認しましょう。"
+  },
+  "updatedAt": "2026-10-18T06:00:00.000Z",
+  "settings": {
+    "questionCount": 2,
+    "passingScore": 70,
+    "difficulty": "basic",
+    "randomizeQuestions": true,
+    "randomizeChoices": true,
+    "categoryDistributionMode": "weighted",
+    "categoryDistribution": [
+      {
+        "categoryId": "X-001",
+        "weight": 1,
+        "priority": 1
+      },
+      {
+        "categoryId": "X-002",
+        "weight": 1,
+        "priority": 2
+      }
+    ]
+  },
+  "categories": [
+    {
+      "id": "X-001",
+      "name": "メールとリンクの扱い"
+    },
+    {
+      "id": "X-002",
+      "name": "なりすましへの注意"
+    }
+  ],
+  "questions": [
+    {
+      "id": "Q001",
+      "category": "メールとリンクの扱い",
+      "difficulty": "basic",
+      "type": "single",
+      "question": "見覚えのない送信元からリンク付きのメールが届きました。最も適切な対応はどれですか。",
+      "choices": [
+        "リンクを開かず、社内で決められた窓口に確認する",
+        "リンクを開いてから、本物かどうか考える",
+        "同僚全員にそのまま転送する",
+        "送信元にパスワードを返信する"
+      ],
+      "answer": [
+        0
+      ],
+      "explanation": "リンクを開く前に、社内で決められた手順で確認します。",
+      "tags": [
+        "メール",
+        "確認"
+      ]
+    },
+    {
+      "id": "Q002",
+      "category": "なりすましへの注意",
+      "difficulty": "basic",
+      "type": "multiple",
+      "question": "上司を名乗る相手から、普段と違う方法で急な依頼が届きました。適切な対応をすべて選んでください。",
+      "choices": [
+        "以前から知っている連絡先で本人に確認する",
+        "表示名が上司なので、確認せず対応する",
+        "社内で決められた確認・報告の手順に従う",
+        "確認を省くよう言われたので、誰にも相談しない"
+      ],
+      "answer": [
+        0,
+        2
+      ],
+      "explanation": "表示名だけで判断せず、既知の連絡先や社内の手順で確認します。",
+      "tags": [
+        "なりすまし",
+        "本人確認"
+      ]
+    }
+  ]
+}

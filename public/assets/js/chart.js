@@ -3,7 +3,7 @@
 // Chart.js v4 を前提（index.html でCDN読み込み）
 // =========================================================
 
-import { getBrand } from './branding.js';
+import { getBrand } from './branding.js?v=1.2.0';
 
 let radarInstance = null;
 
@@ -120,6 +120,13 @@ export function getRadarInstance() {
   return radarInstance;
 }
 
+function finishRadarFrame() {
+  if (!radarInstance) return;
+  radarInstance.stop();
+  radarInstance.resize();
+  radarInstance.update('none');
+}
+
 /**
  * 現在のレーダーチャートを、濃色背景を敷いたPNG Blobとして取得する。
  * （透過のままだと明るいメール背景で線が見えにくいため）
@@ -127,6 +134,7 @@ export function getRadarInstance() {
  */
 export async function radarToPngBlob() {
   if (!radarInstance) return null;
+  finishRadarFrame();
   const src = radarInstance.canvas;
   const out = document.createElement('canvas');
   const scale = 2; // 解像度2倍で保存
@@ -161,6 +169,7 @@ export async function downloadRadarPng(filename = 'quiz-radar.png') {
 // summary: { rank, scoreRate, correctCount, totalQuestions, aiLiteracyDeviation,
 //            passingScore, categories:[{name, ratePercent}] }
 export async function resultToPngBlob(summary) {
+  finishRadarFrame();
   const scale = 2;
   const W = 720;
   const headerH = 150;

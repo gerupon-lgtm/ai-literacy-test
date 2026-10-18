@@ -7,10 +7,14 @@
 //
 // すべてブラウザ内で完結（サーバー送信なし）。
 // =========================================================
-import { downloadBlob } from './export.js';
-import { CATEGORY_DEFS } from './categories.js';
-import { ghListSets, ghGetSet, ghSaveSet, isApiConfigured } from './apiClient.js';
-import { pickBrandFields } from './branding.js';
+import { downloadBlob } from './export.js?v=1.2.0';
+import { CATEGORY_DEFS } from './categories.js?v=1.2.0';
+import { ghListSets, ghGetSet, ghSaveSet, isApiConfigured } from './apiClient.js?v=1.2.0';
+import { pickBrandFields } from './branding.js?v=1.2.0';
+import { prepareImport, mergeImport, importSource } from './pool-import.js?v=1.2.0';
+import { chooseImport } from './import-dialog.js?v=1.2.0';
+import { questionSetErrors } from './question-set.js?v=1.2.0';
+import { createSetItem, addSetButton } from './set-list.js?v=1.2.0';
 
 // プール状態
 let pool = [];          // { uid, question, choices[], answer[], type, category, difficulty, explanation, tags[], selected, dupOf }
@@ -23,6 +27,11 @@ let meta = {
   randomizeChoices: true,
   brand: {},            // 検定の名前・テーマ等（title, theme など）。読み込んだセットから引き継ぐ
 };
+let availableSets = [];
+let availableRevision = null;
+let poolRevision = null;
+let importing = false;
+let saving = false;
 let uidSeq = 1;
 let sourceSetId = null;   // GitHubから読み込んだ場合の元セットID（上書き保存先）
 let getAdminToken = null; // admin.js からトークン取得関数を受け取る
@@ -44,6 +53,11 @@ export function initPool(tokenGetter) {
   if (ghRefresh) ghRefresh.addEventListener('click', loadGhSets);
   const ghSave = $('btn-pool-gh-save');
   if (ghSave) ghSave.addEventListener('click', onGhSave);
+
+  window.addEventListener('set-list-updated', event => {
+    availableSets = event.detail.sets || []; availableRevision = event.detail.revision;
+    renderGhList(availableSets);
+  });
 
   // メタ入力の変更を反映
   ['pool-setid', 'pool-version', 'pool-count', 'pool-pass', 'pool-randomize-q', 'pool-randomize-c']
@@ -86,52 +100,50 @@ async function onFilesSelected(e) {
 
 // ファイル配列を処理してプールへ追加（選択・ドロップ共通）
 async function processFiles(files) {
-  let added = 0;
-  let errors = [];
-
-  for (const file of files) {
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      const questions = extractQuestions(data);
-      if (!questions.length) { errors.push(`${file.name}: 設問が見つかりません`); continue; }
-      absorbMeta(data);
-      for (const q of questions) {
-        const norm = normalizeQuestion(q);
-        if (norm) { pool.push(norm); added++; }
-      }
-    } catch (err) {
-      errors.push(`${file.name}: 読み込み失敗（${err.message}）`);
+  if (importing || saving) { setAlert('pool-upload-alert', 'warn', '現在の取込・保存が完了してから操作してください。'); return; }
+  importing = true;
+  let added = 0; const errors = [];
+  try {
+    if (isApiConfigured() && getAdminToken() && !availableRevision) await loadGhSets();
+    for (const file of files) {
+      try {
+        const data = JSON.parse(await file.text());
+        const raw = importSource(data);
+        const setId = Array.isArray(raw) ? '' : raw?.questionSetId;
+        const preview = prepareImport(data, setId || '__pending__');
+        const choice = await chooseImport({
+          fileName: file.name, setId, count: preview.questions.length, sets: availableSets,
+          getExistingCount: id => pool.filter(q => q.originSetId === id).length,
+        });
+        if (!choice) continue;
+        const prepared = prepareImport(data, choice.setId);
+        const questions = prepared.questions.map(q => normalizeQuestion(q));
+        const wasEmpty = pool.length === 0;
+        // Validate/decide first; a cancelled or invalid file cannot remove old questions.
+        const next = mergeImport(pool, questions, prepared.setId, choice.mode);
+        if (wasEmpty) {
+          meta = { questionSetId: '', version: '1.0.0', questionCount: 20, passingScore: 70,
+            randomizeQuestions: false, randomizeChoices: true, brand: {}, categories: [], distribution: [] };
+          absorbSetMeta(prepared.source);
+          poolRevision = availableRevision;
+          const matched = availableSets.filter(set => set.questionSetId === prepared.setId);
+          sourceSetId = matched.length === 1 ? matched[0].id : null;
+        } else if (choice.mode === 'replace' && meta.questionSetId === prepared.setId) {
+          meta.version = prepared.source.version || meta.version;
+          meta.brand = { ...meta.brand, ...pickBrandFields(prepared.source) };
+          if (prepared.source.categories) {
+            meta.categories = prepared.source.categories;
+            meta.distribution = prepared.source.settings?.categoryDistribution || [];
+          }
+        }
+        pool = next; added += questions.length;
+      } catch (err) { errors.push(file.name + ': ' + err.message); }
     }
-  }
-
-  markDuplicates();
-
-  const msg = `${added} 問を追加しました（プール合計 ${pool.length} 問）。`
-    + (errors.length ? `<br><small>${errors.map(esc).join('<br>')}</small>` : '');
-  setAlert('pool-upload-alert', errors.length ? 'warn' : 'info', msg);
-
-  render();
-}
-
-// 様々な形（{questions:[]} / 配列 / {questionSetDraft:{questions}}）から設問配列を取り出す
-function extractQuestions(data) {
-  if (Array.isArray(data)) return data;
-  if (data && Array.isArray(data.questions)) return data.questions;
-  if (data && data.questionSetDraft && Array.isArray(data.questionSetDraft.questions)) return data.questionSetDraft.questions;
-  return [];
-}
-
-// メタ情報を吸収（既に手入力済みなら上書きしない）
-function absorbMeta(data) {
-  const src = data && data.questionSetDraft ? data.questionSetDraft : data;
-  if (!src || typeof src !== 'object') return;
-  if (!meta.questionSetId && src.questionSetId) meta.questionSetId = String(src.questionSetId);
-  if (!Object.keys(meta.brand || {}).length) meta.brand = pickBrandFields(src);
-  if (src.version && meta.version === '1.0.0') meta.version = String(src.version);
-  const s = src.settings || {};
-  if (s.passingScore != null && meta.passingScore === 70) meta.passingScore = Number(s.passingScore);
-  syncMetaInputs();
+    markDuplicates(); render();
+    setAlert('pool-upload-alert', errors.length ? 'warn' : 'info',
+      '取込 ' + added + ' 問（プール合計 ' + pool.length + ' 問）。'
+      + (errors.length ? '<br>' + errors.map(esc).join('<br>') : ''));
+  } finally { importing = false; }
 }
 
 // カテゴリ名を定義済みラベルに正規化する。
@@ -179,7 +191,7 @@ function normalizeQuestion(q) {
   if (typeof answer === 'number') answer = [answer];
   if (!Array.isArray(answer)) answer = [];
   answer = answer.filter((a) => Number.isInteger(a) && a >= 0 && a < choices.length);
-  if (!answer.length) answer = [0];
+  // Missing answers are rejected before import, never guessed.
 
   let type = q.type === 'multiple' ? 'multiple' : 'single';
   if (type === 'single' && answer.length > 1) answer = [answer[0]];
@@ -231,7 +243,12 @@ function bigrams(s) { const set = new Set(); for (let i = 0; i < s.length - 1; i
 // ---- 操作 ----
 function clearPool() {
   if (pool.length && !confirm('プールを空にしますか？')) return;
+  if (importing || saving) return;
   pool = [];
+  meta = { questionSetId: '', version: '1.0.0', questionCount: 20, passingScore: 70,
+    randomizeQuestions: false, randomizeChoices: true, brand: {}, categories: [], distribution: [] };
+  poolRevision = null;
+  $('pool-save-name').value = '';
   sourceSetId = null;
   updateGhSaveButton();
   render();
@@ -251,6 +268,7 @@ async function loadGhSets() {
     const data = await ghListSets(getAdminToken());
     clearAlert('pool-gh-status');
     const sets = data.sets || [];
+    availableSets = sets; availableRevision = data.revision;
     renderGhList(sets);
     if (sets.length === 0) {
       setAlert('pool-gh-alert', 'info', 'GitHubに保存済みのセットはありません。');
@@ -270,54 +288,36 @@ async function loadGhSets() {
 }
 
 function renderGhList(sets) {
-  const container = $('pool-gh-list');
-  if (!sets.length) { container.innerHTML = ''; return; }
-  container.innerHTML = '';
-  sets.forEach((s) => {
-    const item = document.createElement('div');
-    item.className = 'set-item' + (s.id === sourceSetId ? ' active' : '');
-    const updated = s.updatedAt ? formatJstShort(s.updatedAt) : '—';
-    item.innerHTML =
-      '<div class="set-info">'
-      + '<div class="set-name">' + esc(s.questionSetId || s.id) + '</div>'
-      + '<div class="set-meta">ID: ' + esc(s.id) + ' ／ ver ' + esc(s.version || '—')
-      + ' ／ 在庫' + s.poolSize + '問 ／ ' + esc(updated) + '</div></div>'
-      + (s.id === sourceSetId
-        ? '<span class="active-badge">編集中</span>'
-        : '<button class="btn btn-primary btn-activate" type="button" data-id="' + esc(s.id) + '">読み込んで編集</button>');
+  const container = $('pool-gh-list'); container.innerHTML = '';
+  sets.forEach(set => {
+    const { item, actions } = createSetItem(set, null);
+    addSetButton(actions, '読み込んで編集', () => loadGhSetIntoPool(set.id));
     container.appendChild(item);
-  });
-  container.querySelectorAll('.btn-activate').forEach((btn) => {
-    btn.addEventListener('click', () => loadGhSetIntoPool(btn.dataset.id));
   });
 }
 
 async function loadGhSetIntoPool(setId) {
-  if (pool.length && !confirm(`現在のプール（${pool.length}問）を破棄して、セット「${setId}」を読み込みますか？`)) return;
-  setAlert('pool-gh-alert', 'info', '<span class="spin"></span> セットを読み込み中…');
+  if (importing || saving) return;
+  if (pool.length && !confirm('現在のプール（' + pool.length + '問）を破棄して、保存先「' + setId + '」を読み込みますか？')) return;
+  importing = true;
+  setAlert('pool-gh-alert', 'info', 'セットを読み込み中…');
   try {
     const data = await ghGetSet(getAdminToken(), setId);
     const qs = data.questionSet;
-    if (!qs || !Array.isArray(qs.questions)) throw new Error('セットの内容が不正です。');
-
-    // プールを差し替え
-    pool = [];
-    uidSeq = 1;
-    qs.questions.forEach((q) => {
-      const norm = normalizeQuestion(q);
-      if (norm) { norm.selected = true; pool.push(norm); }
-    });
-    // メタ情報を取り込み
-    absorbSetMeta(qs);
-    sourceSetId = setId;
-    markDuplicates();
-    render();
-    updateGhSaveButton();
-    setAlert('pool-gh-alert', 'info',
-      `セット「${esc(setId)}」を読み込みました（${pool.length}問）。編集後、下の「GitHubのセットに上書き保存」でpushできます。`);
+    const preview = prepareImport(qs, qs?.questionSetId || '__pending__');
+    const choice = await chooseImport({ fileName: setId + '.json', setId: qs?.questionSetId,
+      count: preview.questions.length, sets: availableSets, getExistingCount: () => 0 });
+    if (!choice) { clearAlert('pool-gh-alert'); return; }
+    const prepared = prepareImport(qs, choice.setId);
+    const next = prepared.questions.map(q => ({ ...normalizeQuestion(q), originSetId: prepared.setId }));
+    pool = next;
+    absorbSetMeta(prepared.source); sourceSetId = setId; poolRevision = data.revision;
+    $('pool-save-name').value = setId;
+    markDuplicates(); render(); updateGhSaveButton();
+    setAlert('pool-gh-alert', 'info', 'Set ID「' + esc(prepared.setId) + '」を読み込みました。保存先IDは「' + esc(setId) + '」です。');
   } catch (err) {
-    setAlert('pool-gh-alert', 'error', '読み込みに失敗しました：' + esc(err.message || ''));
-  }
+    setAlert('pool-gh-alert', 'error', esc(err.message || '読み込みに失敗しました。'));
+  } finally { importing = false; }
 }
 
 // 出題セットのメタ情報をプールのmetaに取り込む
@@ -325,6 +325,8 @@ function absorbSetMeta(qs) {
   const s = qs.settings || {};
   meta.questionSetId = qs.questionSetId || meta.questionSetId;
   meta.version = qs.version || meta.version;
+  meta.categories = qs.categories || [];
+  meta.distribution = s.categoryDistribution || [];
   meta.brand = pickBrandFields(qs);   // 読み込んだセットの名称・文言を引き継ぐ（保存時に消えないように）
   if (s.questionCount != null) meta.questionCount = s.questionCount;
   if (s.passingScore != null) meta.passingScore = s.passingScore;
@@ -385,6 +387,7 @@ function jstStampShort() {
 }
 
 async function onGhSave() {
+  if (saving || importing) return;
   if (!isApiConfigured()) {
     setAlert('pool-output-alert', 'warn',
       'GitHub保存は本番（Vercel接続）環境でのみ利用できます。ローカル確認モードでは「JSONをダウンロード」をお使いください。');
@@ -402,8 +405,7 @@ async function onGhSave() {
     return;
   }
   if (nameInput) nameInput.value = saveId; // 正規化後の名前を反映
-  // questionSetId もこの名前に合わせる
-  out.questionSetId = saveId;
+  // 保存先IDとJSON内Set IDは別。既存データの不一致も維持する。
 
   const overwrite = (saveId === sourceSetId);
   const msg = overwrite
@@ -411,17 +413,23 @@ async function onGhSave() {
     : `GitHubに新しいセット「${saveId}」として保存（push）しますか？\n（同名があれば上書きされます）`;
   if (!confirm(msg)) return;
 
+  if (!poolRevision) {
+    setAlert('pool-output-alert', 'error', '保存時点の確認情報がありません。GitHubの一覧を取得してから、JSONを読み込み直してください。'); return;
+  }
+  saving = true; $('btn-pool-gh-save').disabled = true;
   setAlert('pool-output-alert', 'info', '<span class="spin"></span> GitHubに保存中…');
   try {
-    await ghSaveSet(getAdminToken(), saveId, out);
+    const result = await ghSaveSet(getAdminToken(), saveId, out, poolRevision);
+    poolRevision = result.revision;
+    if (typeof window.onPoolSaved === 'function') await window.onPoolSaved(result);
     sourceSetId = saveId; // 以後はこのセットを編集中とみなす
     updateGhSaveButton();
     setAlert('pool-output-alert', 'info',
       `GitHubのセット「${esc(saveId)}」に保存しました（push完了）。`
-      + `検定で使うには「出題セットの保存・切替」で切り替えてください。`);
+      + (result.activeSetId === saveId ? '公開用にも反映しました。自動デプロイ完了後に受験ページを再読み込みしてください。' : '検定で使うには「出題セットの保存・切替」で切り替えてください。'));
   } catch (err) {
-    setAlert('pool-output-alert', 'error', 'GitHub保存に失敗しました：' + esc(err.message || ''));
-  }
+    setAlert('pool-output-alert', 'error', 'GitHub保存に失敗しました：' + esc(err.message || '') + '<br>編集内容は保持しています。競合時はJSONを保存してから、最新のセットを読み込み直してください。');
+  } finally { saving = false; $('btn-pool-gh-save').disabled = false; }
 }
 
 // 日時を短く整形（JST）
@@ -449,7 +457,7 @@ function onMetaChanged() {
   meta.questionSetId = $('pool-setid').value.trim();
   meta.version = $('pool-version').value.trim() || '1.0.0';
   meta.questionCount = Math.max(1, Math.min(100, parseInt($('pool-count').value, 10) || 20));
-  meta.passingScore = Math.max(0, Math.min(100, parseInt($('pool-pass').value, 10) || 70));
+  meta.passingScore = Math.max(0, Math.min(100, Number.isFinite(Number.parseInt($('pool-pass').value, 10)) ? Number.parseInt($('pool-pass').value, 10) : 70));
   meta.randomizeQuestions = $('pool-randomize-q').checked;
   meta.randomizeChoices = $('pool-randomize-c').checked;
   updateCountNote();
@@ -500,31 +508,26 @@ function buildExportObject() {
     if (!(q.category in catCount)) { catCount[q.category] = 0; catOrder.push(q.category); }
     catCount[q.category]++;
   });
-  // 既知ラベルは定義の id、未知は連番 id を振る
-  const knownByLabel = new Map(CATEGORY_DEFS.map((c) => [c.label, c]));
-  let extra = 0;
-  const categories = catOrder.map((label) => {
-    const def = knownByLabel.get(label);
-    if (def) return { id: def.id, name: def.label };
-    extra += 1;
-    return { id: `X-${String(extra).padStart(3, '0')}`, name: label };
+  const known = new Map(CATEGORY_DEFS.map(c => [c.label, c.id]));
+  const preferred = new Map((meta.categories || []).map(c => [c.name, c.id]));
+  const usedIds = new Set(); let extra = 0;
+  const categories = catOrder.map(name => {
+    let id = preferred.get(name) || known.get(name);
+    while (!id || usedIds.has(id)) { extra++; id = 'X-' + String(extra).padStart(3, '0'); }
+    usedIds.add(id); return { id, name };
   });
+  const admin = typeof window.getAdminSettings === 'function' ? window.getAdminSettings() : null;
+  const useAdmin = admin?.questionSetId === meta.questionSetId;
+  const dist = useAdmin ? admin.categoryDistribution : (meta.distribution || []);
+  const catDefs = useAdmin ? admin.categories : (meta.categories || []);
+  const byId = new Map(dist.map(d => [d.categoryId, d]));
+  const byName = new Map(catDefs.map(c => [c.name, byId.get(c.id)]));
+  const categoryDistribution = categories.map((c, i) => ({
+    categoryId: c.id, weight: byName.get(c.name)?.weight ?? catCount[c.name],
+    priority: byName.get(c.name)?.priority ?? i + 1,
+  }));
 
-  // 配分(weight/priority)は、管理画面（AI生成タブ）で設定されている値を引き継ぐ。
-  // 該当カテゴリの設定があればそれを使い、無ければ採用実数をweightにする。
-  const adminSettings = (typeof window.getAdminSettings === 'function') ? window.getAdminSettings() : null;
-  const adminDist = new Map(
-    (adminSettings && adminSettings.categoryDistribution || []).map((d) => [d.categoryId, d]));
-  const categoryDistribution = categories.map((c, idx) => {
-    const d = adminDist.get(c.id);
-    return {
-      categoryId: c.id,
-      weight: d ? Number(d.weight) : catCount[c.name],   // 設定があれば優先、無ければ採用実数
-      priority: d ? Number(d.priority) : (idx + 1),
-    };
-  });
-
-  return {
+  const out = {
     questionSetId: meta.questionSetId || `custom-${Date.now()}`,
     version: meta.version || '1.0.0',
     ...(meta.brand || {}),
@@ -550,6 +553,9 @@ function buildExportObject() {
       tags: q.tags,
     })),
   };
+  const errors = questionSetErrors(out);
+  if (errors.length) { setAlert('pool-output-alert', 'error', errors.map(esc).join('<br>')); return null; }
+  return out;
 }
 
 // ダウンロード（JSONファイルとして保存）
@@ -637,6 +643,7 @@ function renderQuestion(q) {
     <div class="pool-q-head">
       <input type="checkbox" class="sel" ${q.selected ? 'checked' : ''}>
       <div class="pool-q-body">
+        <small class="pool-source-id">取込元Set ID: ${esc(q.originSetId || '未設定')}</small>
         <textarea class="q-text" rows="2">${esc(q.question)}</textarea>
         ${choicesHtml}
         <div class="pool-q-meta">
@@ -673,7 +680,7 @@ function renderQuestion(q) {
   el.querySelectorAll('.correct').forEach((inp) => {
     inp.addEventListener('change', () => {
       const checked = [...el.querySelectorAll('.correct')].filter((x) => x.checked).map((x) => +x.dataset.ci);
-      q.answer = checked.length ? checked : [0];
+      q.answer = checked;
     });
   });
   el.querySelector('.type').addEventListener('change', (e) => {

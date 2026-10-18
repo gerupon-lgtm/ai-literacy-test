@@ -173,6 +173,18 @@ export function buildAnalyzeSystemPrompt(theme) {
 // 後方互換（テーマが渡されない場合）
 export const ANALYZE_SYSTEM_PROMPT = buildAnalyzeSystemPrompt('AIリテラシー');
 
+export function buildGenerateSystemPrompt(theme) {
+  const name = cleanLabel(theme, 'AIリテラシー');
+  return [
+    `あなたは企業内の「${name}」教育の設問作成者です。`,
+    `指定されたカテゴリと配分に従い、「${name}」の実務的な選択式問題を作成してください。`,
+    '- 個人情報や機密情報を入力するよう促さない。',
+    '- 管理者が指定した範囲だけを扱い、実在企業・人物の未確認情報を断定しない。',
+    '- 正解を選択肢に含め、解説を簡潔にする。',
+    '- 指定JSON形式だけを返す。',
+  ].join('\n');
+}
+
 export const GENERATE_SYSTEM_PROMPT = [
   'あなたは企業内AIリテラシー教育の設問作成者です。',
   '以下の条件を厳守してください。',

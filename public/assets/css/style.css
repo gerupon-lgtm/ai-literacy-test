@@ -60,6 +60,21 @@
   --tap: 44px;
 }
 
+[hidden] { display: none !important; }
+.set-item { flex-wrap: wrap; align-items: flex-start; }
+.set-info { min-width: 0; overflow-wrap: anywhere; }
+.set-json-id { font-size: .88rem; font-weight: 700; margin: 6px 0; overflow-wrap: anywhere; }
+.set-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.set-actions .btn { font-size: .8rem; min-height: 38px; padding: 8px 12px; }
+.set-actions small { flex-basis: 100%; color: var(--muted); }
+.disabled-set { border-style: dashed; background: #f4f5f7; }
+.pool-source-id { display: block; margin-bottom: 8px; color: var(--muted); overflow-wrap: anywhere; }
+.import-dialog { width: min(620px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); overflow-y: auto; padding: 24px; border: 1px solid #d8e2e9; border-radius: 14px; color: #16323f; }
+.import-dialog::backdrop { background: rgba(20, 35, 60, .45); }
+.import-dialog label { display: block; margin: 16px 0 6px; }
+.import-dialog p { margin: 12px 0; overflow-wrap: anywhere; }
+.import-error { color: #b12822; }
+
 /* ---------- リセット ---------- */
 *,
 *::before,
@@ -954,6 +969,9 @@ button { font-family: inherit; }
   background: rgba(63,81,181,0.06);
 }
 .set-item .set-info { flex: 1; min-width: 0; }
+.set-item { display: block; }
+.set-item .set-info { width: 100%; }
+.set-item .set-actions { margin-top: 12px; }
 .set-item .set-name { font-weight: 600; font-size: .95rem; word-break: break-all; }
 .set-item .set-meta { font-size: .78rem; color: var(--muted, #5b6b78); margin-top: 2px; }
 .set-item .active-badge {

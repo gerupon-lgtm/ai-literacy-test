@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sawarabi+Gothic&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="stylesheet" href="assets/css/style.css?v=1.2.0">
 </head>
 <body>
   <div class="app-shell">
@@ -82,7 +82,7 @@
           <h2 class="section-title">出題セットの保存・切替</h2>
           <p class="muted" style="font-size:.86rem;margin-bottom:12px">
             複数の出題セットをGitHubに保存し、検定で使うものを切り替えます。
-            切り替えた内容は、次に別のセットを選ぶまで保持されます。
+            Set ID（JSON内）と保存先IDを区別して確認できます。無効なセットはデータを残したまま使用対象から外し、再有効化できます。
           </p>
           <div id="github-status"></div>
           <div id="sets-list" class="sets-list"></div>
@@ -97,7 +97,7 @@
           <h2 class="section-title">出題設定</h2>
           <div class="field">
             <label for="set-count">出題数</label>
-            <input id="set-count" class="input" type="number" min="1" max="200" step="1" value="20">
+            <input id="set-count" class="input" type="number" min="1" max="100" step="1" value="20">
             <p class="muted" style="font-size:.8rem;margin-top:4px">
               在庫（設問プールの問題数）を超える数は設定できません。
             </p>
@@ -150,12 +150,12 @@
           </div>
           <div class="alert alert-info" style="margin-top:14px">
             出題数・合格ライン・カテゴリ配分の変更は、下のボタンで選択中の出題セットに反映され、
-            書き出してGitHubにコミットすると本番に反映されます。
+            GitHubの公開用・保管用の両方へ保存します。自動デプロイ完了後に本番へ反映されます。
             <span class="muted">（AI生成をせず、配分だけ変えたいときもこちら）</span>
           </div>
           <div id="save-alert"></div>
           <div class="btn-row">
-            <button id="btn-save-settings" class="btn btn-primary" type="button">設定を反映して 選択中の出題セットファイルを書き出す</button>
+            <button id="btn-save-settings" class="btn btn-primary" type="button">設定を反映して選択中のセットに保存</button>
           </div>
         </div>
 
@@ -202,7 +202,7 @@
             <h2 class="section-title">JSONをアップロード</h2>
             <p class="muted" style="font-size:.86rem;margin-bottom:12px">
               AI生成などで作成した設問セットJSON（複数可）を読み込み、1つのプールに統合します。
-              ファイルはサーバーに送信されず、ブラウザ内だけで処理されます。
+              読込・編集はブラウザ内で行います。Set IDがない場合は入力し、同じIDを再読込すると追加・置き換えを選べます。GitHubへの保存は別操作です。
             </p>
             <div id="pool-dropzone" class="dropzone">
               <input id="pool-file" class="input" type="file" accept="application/json,.json" multiple hidden>
@@ -213,6 +213,7 @@
               </div>
             </div>
             <div id="pool-upload-alert" style="margin-top:10px"></div>
+            <p class="muted"><a href="docs/question-set-format.md" target="_blank" rel="noopener">JSONフォーマット仕様書</a> ／ <a href="docs/security-sample.json" download>記入用JSONサンプル</a></p>
             <div class="btn-row" style="margin-top:10px">
               <button id="btn-pool-clear" class="btn btn-ghost" type="button">プールを空にする</button>
             </div>
@@ -315,14 +316,14 @@
     </main>
 
     <footer class="app-footer">
-      <p>管理者操作ログは保存されません。設問の本番反映はGitHubへのコミットで行われます。</p>
-      <p class="copyright">© 2026 SIKUMI LAB　　ver 1.1.2</p>
+      <p>保存・切替・無効化・削除はGitHubの履歴に残ります。本番反映はGitHubからの自動デプロイで行われます。</p>
+      <p class="copyright">© 2026 SIKUMI LAB　　ver 1.2.0</p>
     </footer>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="assets/js/config.js"></script>
-  <script type="module" src="assets/js/admin.js"></script>
+  <script src="assets/js/config.js?v=1.2.0"></script>
+  <script type="module" src="assets/js/admin.js?v=1.2.0"></script>
 </body>
 </html>

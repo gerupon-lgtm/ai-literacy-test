@@ -1,15 +1,15 @@
 // =========================================================
 // app.js  受験者向けメインコントローラ
 // =========================================================
-import { buildQuizQuestions, createQuizState, estimateMinutes, validateQuestionSet } from './quiz.js';
-import { buildResultSummary } from './scoring.js';
-import { resolveBrand, applyBrand, getBrand } from './branding.js';
-import { renderRadar, downloadRadarPng, resultToPngBlob } from './chart.js';
+import { buildQuizQuestions, createQuizState, estimateMinutes, validateQuestionSet } from './quiz.js?v=1.2.0';
+import { buildResultSummary } from './scoring.js?v=1.2.0';
+import { resolveBrand, applyBrand, getBrand } from './branding.js?v=1.2.0';
+import { renderRadar, downloadRadarPng, resultToPngBlob } from './chart.js?v=1.2.0';
 import {
   copyResult, csvBlob, txtBlob, downloadBlob,
   shareResultByEmail, buildResultText,
-} from './export.js';
-import { analyzeResult, isApiConfigured } from './apiClient.js';
+} from './export.js?v=1.2.0';
+import { analyzeResult, isApiConfigured } from './apiClient.js?v=1.2.0';
 
 const QUESTION_SET_URL = 'data/current-question-set.json';
 

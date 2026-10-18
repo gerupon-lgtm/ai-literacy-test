@@ -24,20 +24,15 @@
 // =========================================================
 import {
   applyCors, handlePreflight, readJsonBody,
-  verifyAdminToken, callLLM, GENERATE_SYSTEM_PROMPT,
-  CATEGORY_DEFS, CATEGORY_IDS,
+  verifyAdminToken, callLLM, buildGenerateSystemPrompt, cleanLabel,
+  CATEGORY_DEFS,
 } from './_lib.js';
 import { extractJsonLoose } from './_providers.js';
+import { resolveCategoryAllocation } from '../public/assets/js/scoring.js';
 
 const VALID_DIFFICULTY = ['basic', 'standard', 'advanced'];
 const DEFAULT_BATCH_SIZE = 5;
 const MAX_BATCH_SIZE = 10;
-
-// 空欄時に採用する既定生成指示（管理画面の例示と同じ意図）
-const DEFAULT_INSTRUCTION = [
-  '企業内で生成AIを安全かつ効果的に活用するための、実務的なAIリテラシー設問を作成してください。',
-  '各カテゴリの配分に従い、難易度のバランスを取りつつ、現場で迷いやすい判断を問う良問にしてください。',
-].join('\n');
 
 // 設問JSONスキーマ（OpenRouter json_schema / Gemini responseSchema 用）
 const QUESTION_SCHEMA = {
@@ -65,7 +60,7 @@ const QUESTION_SCHEMA = {
 };
 
 // 設問 1 件の検証。問題があれば warnings に push し、致命的なら false を返す。
-function validateQuestion(q, idx, warnings) {
+function validateQuestion(q, idx, warnings, categories) {
   const where = `questions[${idx}]`;
   if (!q || typeof q !== 'object') { warnings.push(`${where}: オブジェクトではありません。`); return false; }
   if (typeof q.question !== 'string' || !q.question.trim()) { warnings.push(`${where}: question が空です。`); return false; }
@@ -86,10 +81,10 @@ function validateQuestion(q, idx, warnings) {
   }
   q.answer = answer;
 
-  const byId = CATEGORY_DEFS.find((c) => c.id === q.category);
-  const byName = CATEGORY_DEFS.find((c) => c.label === q.category);
+  const byId = categories.find((c) => c.id === q.category);
+  const byName = categories.find((c) => c.label === q.category);
   if (byId) q.category = byId.label;
-  else if (!byName) { warnings.push(`${where}: 未知のカテゴリ「${q.category}」。`); }
+  else if (!byName) { warnings.push(`${where}: 未知のカテゴリ「${q.category}」。`); return false; }
 
   if (!VALID_DIFFICULTY.includes(q.difficulty)) q.difficulty = 'standard';
   if (typeof q.explanation !== 'string') q.explanation = '';
@@ -133,17 +128,26 @@ export default async function handler(req, res) {
     return res.status(401).json({ ok: false, code: 'UNAUTHORIZED', message: '管理者トークンが無効です。再ログインしてください。' });
   }
 
-  const instruction = (body && body.instruction && String(body.instruction).trim()) || DEFAULT_INSTRUCTION;
+  const current = body.currentQuestionSet || {};
+  const theme = cleanLabel(current.theme || current.title, 'AIリテラシー');
+  const rawCategories = Array.isArray(current.categories) && current.categories.length ? current.categories : CATEGORY_DEFS;
+  const categories = rawCategories.map(c => ({ id: c?.id, label: c?.name || c?.label, weight: c?.weight || 1 }));
+  if (categories.length > 50 || categories.some(c => typeof c.id !== 'string' || !c.id.trim() || typeof c.label !== 'string' || !c.label.trim())
+      || new Set(categories.map(c => c.id)).size !== categories.length || new Set(categories.map(c => c.label)).size !== categories.length) {
+    return res.status(400).json({ ok: false, code: 'INVALID_CATEGORY', message: 'カテゴリのID・名前が不正、または重複しています。' });
+  }
+  const instruction = (body && body.instruction && String(body.instruction).trim())
+    || `企業内の「${theme}」の理解を確認する設問を、指定された配分と難易度で作成してください。`;
   const settings = (body && body.settings) || {};
-  const questionCount = Number(settings.questionCount) || 20;
-  if (questionCount < 1 || questionCount > 100) {
+  const questionCount = Number(settings.questionCount ?? 20);
+  if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 100) {
     return res.status(400).json({ ok: false, code: 'INVALID_COUNT', message: '出題数は1〜100で指定してください。' });
   }
 
   const dist = Array.isArray(settings.categoryDistribution) ? settings.categoryDistribution : [];
   for (const d of dist) {
-    if (!CATEGORY_IDS.includes(d.categoryId)) {
-      return res.status(400).json({ ok: false, code: 'INVALID_CATEGORY', message: `未定義のカテゴリID: ${d.categoryId}` });
+    if (!d || !categories.some(c => c.id === d.categoryId) || !Number.isSafeInteger(d.weight) || d.weight < 0 || !Number.isSafeInteger(d.priority) || d.priority < 1) {
+      return res.status(400).json({ ok: false, code: 'INVALID_CATEGORY', message: 'カテゴリ配分が不正です。' });
     }
   }
 
@@ -151,6 +155,7 @@ export default async function handler(req, res) {
   let batchSize = Number(body.batchSize) || DEFAULT_BATCH_SIZE;
   batchSize = Math.max(1, Math.min(MAX_BATCH_SIZE, batchSize));
   const batchIndex = Math.max(0, Number(body.batchIndex) || 0);
+  if (!Number.isInteger(batchSize) || !Number.isInteger(batchIndex)) return res.status(400).json({ ok: false, code: 'INVALID_BATCH', message: 'バッチ指定は整数にしてください。' });
   const totalBatches = Math.ceil(questionCount / batchSize);
   const existingQuestions = Array.isArray(body.existingQuestions) ? body.existingQuestions.slice(0, 200) : [];
 
@@ -159,7 +164,7 @@ export default async function handler(req, res) {
   }
 
   // 全体のカテゴリ配分（count）を構築
-  const allocation = buildAllocation(questionCount, dist);
+  const allocation = buildAllocation(questionCount, dist, categories);
   const { counts: batchCounts } = planBatchCategories(allocation, batchSize, batchIndex);
   // このバッチで実際に作る問題数
   const thisBatchCount = Object.values(batchCounts).reduce((s, n) => s + n, 0)
@@ -174,9 +179,9 @@ export default async function handler(req, res) {
     ? `\n# 既に出題済みの問題（これらと内容・論点が重複/類似する問題は絶対に作らない）\n${existingQuestions.map((q, i) => `${i + 1}. ${String(q).slice(0, 120)}`).join('\n')}\n\n上記と同じ知識ポイントを問う問題は避け、必ず異なる観点・場面・論点の問題を作成してください。`
     : '';
 
-  const categoryGuide = CATEGORY_DEFS.map((c) => `${c.id} ${c.label}`).join(' / ');
+  const categoryGuide = categories.map((c) => `${c.id} ${c.label}`).join(' / ');
   const userContent = [
-    '次の条件で、企業内AIリテラシー検定の設問案を作成してください。',
+    `次の条件で、企業内の「${theme}」検定の設問案を作成してください。`,
     '',
     `# このバッチで作る問題数\n${thisBatchCount}問（全${questionCount}問中 ${batchIndex + 1}/${totalBatches} バッチ目）`,
     `# このバッチのカテゴリ内訳\n${breakdownText}`,
@@ -211,7 +216,7 @@ export default async function handler(req, res) {
     // バッチが大きいほど多く必要。下限6000・上限16000でクランプ。
     const dynamicMaxTokens = Math.min(16000, Math.max(6000, thisBatchCount * 1500));
     const result = await callLLM({
-      system: GENERATE_SYSTEM_PROMPT,
+      system: buildGenerateSystemPrompt(theme),
       user: userContent,
       temperature: 0.5,
       maxTokens: dynamicMaxTokens,
@@ -247,7 +252,7 @@ export default async function handler(req, res) {
   const warnings = [];
   const candidate = [];
   rawQuestions.forEach((q, i) => {
-    if (validateQuestion(q, i, warnings)) candidate.push(q);
+    if (validateQuestion(q, i, warnings, categories)) candidate.push(q);
   });
 
   if (candidate.length === 0) {
@@ -378,34 +383,8 @@ function repairTruncatedQuestionsJson(text) {
 
 // 全体のカテゴリ配分を [{categoryId,label,count}] で返す。
 // weight 比率を questionCount に按分し、端数は優先度順に配る。
-function buildAllocation(questionCount, dist) {
-  const cats = CATEGORY_DEFS.map((c) => {
-    const d = dist.find((x) => x.categoryId === c.id);
-    return { categoryId: c.id, label: c.label, weight: d ? Number(d.weight) || 0 : 0, priority: d ? Number(d.priority) || 99 : 99 };
-  });
-  const totalWeight = cats.reduce((s, c) => s + c.weight, 0);
-
-  // 全weight0なら均等割り
-  if (totalWeight <= 0) {
-    const base = Math.floor(questionCount / cats.length);
-    let rem = questionCount - base * cats.length;
-    return cats.map((c) => {
-      const extra = rem > 0 ? 1 : 0; if (rem > 0) rem--;
-      return { categoryId: c.categoryId, label: c.label, count: base + extra };
-    });
-  }
-
-  // 比率按分（floor）
-  const withFloor = cats.map((c) => {
-    const exact = (c.weight / totalWeight) * questionCount;
-    return { ...c, exact, count: Math.floor(exact), frac: exact - Math.floor(exact) };
-  });
-  let assigned = withFloor.reduce((s, c) => s + c.count, 0);
-  let remainder = questionCount - assigned;
-
-  // 端数は frac 大きい順、同点なら priority 小さい順
-  const order = [...withFloor].sort((a, b) => (b.frac - a.frac) || (a.priority - b.priority));
-  for (let i = 0; i < order.length && remainder > 0; i++) { order[i].count++; remainder--; }
-
-  return withFloor.map((c) => ({ categoryId: c.categoryId, label: c.label, count: c.count }));
+function buildAllocation(questionCount, dist, categories) {
+  const defaults = categories.map((c, i) => ({ categoryId: c.id, weight: c.weight || 1, priority: i + 1 }));
+  return resolveCategoryAllocation(questionCount, dist, defaults)
+    .map(d => ({ categoryId: d.categoryId, label: categories.find(c => c.id === d.categoryId).label, count: d.count }));
 }

@@ -2,8 +2,8 @@
 // export.js  結果テキスト/CSV生成・保存・ブラウザ起点メール共有
 // 設計書 §9 / API仕様 §6 に準拠（サーバー送信はしない）
 // =========================================================
-import { radarToPngBlob } from './chart.js';
-import { getBrand } from './branding.js';
+import { radarToPngBlob } from './chart.js?v=1.2.0';
+import { getBrand } from './branding.js?v=1.2.0';
 
 /** 汎用 Blob ダウンロード */
 export function downloadBlob(blob, filename) {
