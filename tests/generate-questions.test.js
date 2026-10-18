@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import handler from '../api/generate-questions.js';
 import { issueAdminToken } from '../api/_lib.js';
 import { questionSet } from './github-fixture.js';
+import { buildDraftFromQuestions } from '../public/assets/js/question-draft.js';
 
 process.env.ADMIN_TOKEN_SECRET = 'test-only-secret';
 process.env.GEMINI_API_KEY = 'test-only-key';
@@ -24,4 +25,17 @@ test('custom categories and the current theme are used for generation', async ()
   assert.equal(res.body.questions[0].category, '確認');
   assert.match(sent.systemInstruction.parts[0].text, /情報セキュリティ/);
   assert.doesNotMatch(sent.systemInstruction.parts[0].text, /企業内AIリテラシー教育/);
+});
+
+test('browser draft assembly preserves custom category IDs and configured weights despite reordered output', () => {
+  const current = questionSet('custom');
+  current.categories = [{ id: 'S-001', name: '先のカテゴリ' }, { id: 'S-002', name: '後のカテゴリ' }];
+  const settings = { questionCount: 2, passingScore: 0, categoryDistribution: [
+    { categoryId: 'S-001', weight: 9, priority: 1 }, { categoryId: 'S-002', weight: 1, priority: 2 },
+  ] };
+  const qs = [{ ...current.questions[0], category: '後のカテゴリ' }, { ...current.questions[0], category: '先のカテゴリ', id: 'Q002' }];
+  const draft = buildDraftFromQuestions(qs, settings, current, {});
+  assert.deepEqual(draft.categories, [{ id: 'S-002', name: '後のカテゴリ' }, { id: 'S-001', name: '先のカテゴリ' }]);
+  assert.deepEqual(draft.settings.categoryDistribution.map(d => d.weight), [1, 9]);
+  assert.equal(draft.settings.passingScore, 0);
 });

@@ -139,6 +139,12 @@ const { chromium, webkit } = require('playwright');
     await page.locator('#tab-btn-generate').click(); await page.locator('#btn-generate').click();
     await page.locator('#preview-panel').waitFor({ state: 'visible' }); assert.match(await page.locator('#gen-alert').innerText(), /完了/);
     checks.push('pool GitHub save preserves distinct IDs and synchronizes active public copy; custom-category generation UI');
+    await page.locator('#tab-btn-pool').click(); await page.locator('#btn-pool-clear').click();
+    await upload(page, 'new-after-clear.json', questionSet('new-after-clear'));
+    await page.waitForFunction(() => document.querySelectorAll('.pool-q').length === 1);
+    assert.equal(await page.locator('#pool-save-name').inputValue(), 'new-after-clear');
+    checks.push('clearing an old set then importing a new one resets the save target to the new Set ID');
+    await page.locator('#tab-btn-generate').click();
     await page.screenshot({ path: path.join(evidence, 'desktop-admin.png'), fullPage: true });
 
     const mobileBrowser = await webkit.launch({ headless: true }); browsers.push(mobileBrowser);

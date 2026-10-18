@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "vercel dev",
-    "test": "node tests/scoring.test.js && node --test --test-concurrency=1 tests/set-management.test.js tests/pool-import.test.js tests/generate-questions.test.js",
+    "test": "node tests/scoring.test.js && node --test --test-concurrency=1 tests/set-management.test.js tests/pool-import.test.js tests/generate-questions.test.js && node scripts/verify-data.mjs",
     "version:update": "node scripts/set-version.mjs"
   },
   "license": "UNLICENSED"

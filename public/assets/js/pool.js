@@ -128,6 +128,7 @@ async function processFiles(files) {
           poolRevision = availableRevision;
           const matched = availableSets.filter(set => set.questionSetId === prepared.setId);
           sourceSetId = matched.length === 1 ? matched[0].id : null;
+          $('pool-save-name').value = sourceSetId || sanitizeSetName(prepared.setId);
         } else if (choice.mode === 'replace' && meta.questionSetId === prepared.setId) {
           meta.version = prepared.source.version || meta.version;
           meta.brand = { ...meta.brand, ...pickBrandFields(prepared.source) };
@@ -250,6 +251,7 @@ function clearPool() {
   poolRevision = null;
   $('pool-save-name').value = '';
   sourceSetId = null;
+  syncMetaInputs();
   updateGhSaveButton();
   render();
   setAlert('pool-upload-alert', 'info', 'プールを空にしました。');
@@ -346,7 +348,7 @@ function updateGhSaveButton() {
   const note = $('pool-source-note');
   const nameInput = $('pool-save-name');
   // 保存先名の初期値を決める（未入力なら）
-  if (nameInput && !nameInput.value.trim()) {
+  if (nameInput && pool.length && !nameInput.value.trim()) {
     nameInput.value = defaultSaveName();
   }
   if (note) {
