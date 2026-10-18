@@ -478,6 +478,13 @@ button { font-family: inherit; }
   font-variant-numeric: tabular-nums;
   margin-top: 3px;
 }
+/* 「要再学習」など文字の判定は、数字より小さくして1行に収める */
+#r-passmark {
+  font-size: 1.15rem;
+  white-space: nowrap;
+  line-height: 2.55rem;
+  margin-top: 0;
+}
 
 .chart-wrap {
   position: relative;

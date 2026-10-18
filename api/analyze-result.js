@@ -2,7 +2,7 @@
 // api/analyze-result.js
 // 受験結果サマリーから理解度コメントを生成する（Vercel Function）
 // =========================================================
-import { applyCors, handlePreflight, readJsonBody, callOpenRouter, ANALYZE_SYSTEM_PROMPT } from './_lib.js';
+import { applyCors, handlePreflight, readJsonBody, callOpenRouter, buildAnalyzeSystemPrompt, cleanLabel } from './_lib.js';
 
 export default async function handler(req, res) {
   if (handlePreflight(req, res)) return;
@@ -36,8 +36,12 @@ export default async function handler(req, res) {
     strongCategories: summary.strongCategories || [],
   };
 
+  const quiz = (body && body.quiz) || {};
+  const theme = cleanLabel(quiz.theme, 'AIリテラシー');
+  const title = cleanLabel(quiz.title, `${theme}検定`);
+
   const userContent = [
-    '以下はある受験者のAIリテラシー検定の結果サマリーです。',
+    `以下はある受験者の「${title}」の結果サマリーです。`,
     '企業内利用を前提に、理解度コメントを200〜300字で作成してください。',
     'コメント本文だけを書いてください。JSONや記号、見出し、引用符で囲む必要はありません。',
     '',
@@ -46,7 +50,7 @@ export default async function handler(req, res) {
 
   try {
     const raw = await callOpenRouter({
-      system: ANALYZE_SYSTEM_PROMPT,
+      system: buildAnalyzeSystemPrompt(theme),
       user: userContent,
       temperature: 0.3,
       maxTokens: 1200,   // 日本語300字が途中で切れないよう余裕を持たせる

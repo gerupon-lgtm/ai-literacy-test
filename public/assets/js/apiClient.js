@@ -50,7 +50,7 @@ export function isApiConfigured() {
 }
 
 /** 結果分析コメント生成。失敗時は null を返し、呼び出し側でフォールバック表示。 */
-export async function analyzeResult(resultSummary) {
+export async function analyzeResult(resultSummary, brand = {}) {
   // 送信前に念のため個人情報になり得るフィールドを除外
   const safe = {
     totalQuestions: resultSummary.totalQuestions,
@@ -62,7 +62,11 @@ export async function analyzeResult(resultSummary) {
     weakCategories: resultSummary.weakCategories,
     strongCategories: resultSummary.strongCategories,
   };
-  const data = await postJson('analyze-result', { resultSummary: safe });
+  const data = await postJson('analyze-result', {
+    resultSummary: safe,
+    // 検定の名前とテーマ（コメントの観点に使う。個人情報ではない）
+    quiz: { title: brand.title || '', theme: brand.theme || '' },
+  });
   return data.comment || null;
 }
 

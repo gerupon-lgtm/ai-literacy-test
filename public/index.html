@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="企業内で生成AIを安全に使うための理解度を確認・較正するセルフチェック検定。">
-  <title>AIリテラシー検定</title>
+  <meta name="description" content="理解度を確認するセルフチェック検定。">
+  <title>検定</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sawarabi+Gothic&display=swap" rel="stylesheet">
@@ -21,7 +21,7 @@
         </svg>
       </span>
       <span class="brand-text">
-        <span class="name">AIリテラシー検定</span>
+        <span class="name" id="brand-name">検定</span>
         <span class="sub">Literacy Calibration</span>
       </span>
     </header>
@@ -33,10 +33,7 @@
           <p class="eyebrow">Self Check</p>
           <h1>Let's Check It OUT!!!</h1>
           <p class="set-name-display" id="set-name-display"></p>
-          <p class="lead">
-            企業内で生成AIを安全に使うための理解度を、選択式でセルフチェックします。
-            結果はカテゴリ別に可視化され、弱点と次の学習ポイントがわかります。
-          </p>
+          <p class="lead" id="top-lead"></p>
 
           <div class="meta-grid">
             <div class="meta-cell">
@@ -190,8 +187,8 @@
     </main>
 
     <footer class="app-footer">
-      <p>企業内AIリテラシー教育向けセルフチェック。採点・正誤判定はブラウザ内の固定ロジックで行い、個人情報をAIへ送信しません。</p>
-      <p class="copyright">© 2026 SIKUMI LAB　　ver 1.0.0</p>
+      <p id="footer-note"></p>
+      <p class="copyright">© 2026 SIKUMI LAB　　ver 1.1.2</p>
     </footer>
   </div>
 

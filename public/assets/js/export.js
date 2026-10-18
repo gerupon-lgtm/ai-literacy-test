@@ -3,6 +3,7 @@
 // 設計書 §9 / API仕様 §6 に準拠（サーバー送信はしない）
 // =========================================================
 import { radarToPngBlob } from './chart.js';
+import { getBrand } from './branding.js';
 
 /** 汎用 Blob ダウンロード */
 export function downloadBlob(blob, filename) {
@@ -19,7 +20,7 @@ export function downloadBlob(blob, filename) {
 /** 結果テキスト（コピー・TXT・メール本文共通） */
 export function buildResultText(summary, comment) {
   const lines = [];
-  lines.push('AIリテラシー検定 結果');
+  lines.push(`${getBrand().title} 結果`);
   lines.push('========================');
   lines.push(`総合スコア : ${summary.scoreRate} / 100`);
   lines.push(`ランク     : ${summary.rank}`);
@@ -36,7 +37,7 @@ export function buildResultText(summary, comment) {
     lines.push(comment);
   }
   lines.push('');
-  lines.push('※本結果は企業内AIリテラシー教育のセルフチェックです。');
+  lines.push(getBrand().resultNote);
   return lines.join('\n');
 }
 
@@ -105,16 +106,16 @@ export async function shareResultByEmail(summary, comment) {
   const png = await radarToPngBlob();
 
   const files = [
-    new File([csv], 'ai-literacy-result.csv', { type: 'text/csv' }),
-    new File([txt], 'ai-literacy-result.txt', { type: 'text/plain' }),
+    new File([csv], 'quiz-result.csv', { type: 'text/csv' }),
+    new File([txt], 'quiz-result.txt', { type: 'text/plain' }),
   ];
-  if (png) files.push(new File([png], 'ai-literacy-radar.png', { type: 'image/png' }));
+  if (png) files.push(new File([png], 'quiz-radar.png', { type: 'image/png' }));
 
   // 1) Web Share API（ファイル共有）
   if (navigator.canShare && navigator.canShare({ files })) {
     try {
       await navigator.share({
-        title: 'AIリテラシー検定 結果',
+        title: `${getBrand().title} 結果`,
         text: resultText,
         files,
       });
@@ -127,11 +128,11 @@ export async function shareResultByEmail(summary, comment) {
   }
 
   // 2) フォールバック: ファイル保存 + mailto:
-  downloadBlob(csv, 'ai-literacy-result.csv');
-  downloadBlob(txt, 'ai-literacy-result.txt');
-  if (png) downloadBlob(png, 'ai-literacy-radar.png');
+  downloadBlob(csv, 'quiz-result.csv');
+  downloadBlob(txt, 'quiz-result.txt');
+  if (png) downloadBlob(png, 'quiz-radar.png');
 
-  const subject = encodeURIComponent('AIリテラシー検定 結果');
+  const subject = encodeURIComponent(`${getBrand().title} 結果`);
   const body = encodeURIComponent(
     resultText + '\n\n※保存済みのCSV・TXT・PNGをメールに手動で添付してください。'
   );

@@ -1,15 +1,15 @@
 # AIリテラシー検定 Webアプリ
 
-**バージョン: ver 1.0.0**
+**バージョン: ver 1.1.2**
 
 企業内で生成AIを安全に使うための理解度チェックを行うWebアプリです。
 
-- **フロントエンド**: GitHub Pages（静的ホスティング／GitHub Actions で `public/` を自動デプロイ）
-- **AI連携API**: Vercel Functions（OpenRouter / Gemini / Ollama を中継・自動フォールバック）
+- **フロントエンド**: GitHub Pages（静的ホスティング）
+- **AI連携API**: Vercel Functions（OpenRouter API を中継）
 - **採点**: ブラウザ内の固定ロジック（AIは使わない）
 - **結果メール共有**: ブラウザ起点（Web Share API / `mailto:` フォールバック）
 
-APIキーや管理者パスワードは**フロントには一切含めず**、すべて Vercel の環境変数で管理します。
+OpenRouter の APIキーや管理者パスワードは**フロントには一切含めず**、すべて Vercel の環境変数で管理します。
 
 ---
 
@@ -19,37 +19,18 @@ APIキーや管理者パスワードは**フロントには一切含めず**、�
 ai-literacy-test/
 ├─ public/                     ← GitHub Pages で公開する静的ファイル
 │  ├─ index.html               受験者画面（トップ/回答/結果）
-│  ├─ admin.html               管理者画面（AI生成 / 設問プール・組み立ての2タブ）
+│  ├─ admin.html               管理者画面
 │  ├─ assets/
 │  │  ├─ css/style.css
-│  │  ├─ img/                  画像素材
-│  │  └─ js/
-│  │     ├─ app.js             受験フロー全体の制御
-│  │     ├─ quiz.js            出題の組み立て（配分・シャッフル）
-│  │     ├─ scoring.js         採点・ランク・偏差値風スコア
-│  │     ├─ chart.js           レーダーチャート描画・結果画像合成
-│  │     ├─ export.js          コピー / CSV / PNG / メール共有
-│  │     ├─ apiClient.js       Vercel Functions 呼び出し
-│  │     ├─ config.js          apiBase 設定
-│  │     ├─ categories.js      カテゴリ定義（サーバー側と一致させる）
-│  │     ├─ admin.js           管理者画面のロジック
-│  │     └─ pool.js            設問プール／組み立てモード
+│  │  └─ js/                   app.js, scoring.js, quiz.js, chart.js,
+│  │                           export.js, apiClient.js, config.js, admin.js
 │  └─ data/
-│     ├─ current-question-set.json   現在の出題セット（本番で読まれる）
-│     ├─ sample-question-set.json    初期サンプル（20問・locked）
-│     ├─ active-set.json             アクティブなセットIDの指定（GitHub連携で生成）
-│     └─ sets/                       保存済みセット置き場（GitHub連携で生成）
-├─ api/                        ← Vercel Functions（AI中継・管理者API）
-│  ├─ _lib.js                  共通処理（CORS / JSONボディ / 管理者トークン / プロンプト）
-│  ├─ _providers.js            マルチLLM抽象化とフォールバック
-│  ├─ admin-login.js           管理者ログイン（HMAC署名トークン発行）
-│  ├─ generate-questions.js    設問案のAI生成（分割バッチ）
-│  ├─ analyze-result.js        結果コメントのAI生成
-│  ├─ list-models.js           利用可能モデルの診断
-│  └─ github-save.js           設問セットの保存・一覧・切替（GitHub API）
-├─ tests/
-│  └─ scoring.test.js          採点ロジックの単体テスト
-├─ .github/workflows/pages.yml GitHub Pages への自動デプロイ
+│     └─ current-question-set.json   現在の設問セット（20問）
+├─ api/                        ← Vercel Functions（AI中継）
+│  ├─ _lib.js                  共通処理（CORS / OpenRouter / トークン）
+│  ├─ admin-login.js           管理者ログイン
+│  ├─ generate-questions.js    設問案のAI生成
+│  └─ analyze-result.js        結果コメントのAI生成
 ├─ vercel.json
 ├─ package.json
 └─ README.md
@@ -69,19 +50,13 @@ python3 -m http.server 8000
 
 受験・採点・レーダーチャート・CSV/PNG/テキスト保存・メール共有まで、この状態で動作します。
 
-### 採点ロジックのテスト
-
-```bash
-npm test          # node tests/scoring.test.js
-```
-
-正誤判定（単一／複数選択）、スコア率、ランク、偏差値風スコア、カテゴリ別集計を検証します。
-
 ---
 
 ## 3. GitHub Pages の設定（フロント公開）
 
 ### 3-1. リポジトリへ push
+
+GitHub に新しいリポジトリ（例: `ai-literacy-test`）を作成し、本プロジェクトを push します。
 
 ```bash
 git init
@@ -92,42 +67,76 @@ git remote add origin https://github.com/<あなたのユーザー名>/ai-litera
 git push -u origin main
 ```
 
-### 3-2. Pages を有効化
+### 3-2. 公開ディレクトリの指定
 
-本リポジトリには **`.github/workflows/pages.yml` を同梱済み**で、`main` への push をトリガーに `public/` ディレクトリを GitHub Pages へデプロイします。
+GitHub Pages は通常リポジトリ直下か `/docs` を公開します。本アプリの公開対象は `public/` のため、**いずれかの方法**を選びます。
 
-GitHub リポジトリの **Settings → Pages** を開き、Source を「**GitHub Actions**」に設定してください（「Deploy from a branch」ではありません）。
+**方法A（おすすめ・簡単）**: `public/` の中身をリポジトリ直下に置く
+公開対象を増やしたくない場合は、`public/` 配下をそのままリポジトリのルートに配置してください。
+
+**方法B: GitHub Actions で `public/` を公開**
+リポジトリに `.github/workflows/pages.yml` を作成します。
+
+```yaml
+name: Deploy to GitHub Pages
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public          # ← public ディレクトリを公開
+      - id: deployment
+        uses: actions/deploy-pages@v4
+```
+
+### 3-3. Pages を有効化
+
+GitHub リポジトリの **Settings → Pages** を開き、
+
+- 方法A: Source を「Deploy from a branch」、Branch を `main` / `(root)` に設定
+- 方法B: Source を「GitHub Actions」に設定
 
 数分後、`https://<あなたのユーザー名>.github.io/ai-literacy-test/` が公開URLになります。
 このURLを**メモ**してください（Vercel 側の CORS 設定で使います）。
-
-> `workflow_dispatch` も有効なので、Actions タブから手動で再デプロイもできます。
 
 ---
 
 ## 4. Vercel の設定（AI機能を使う場合）
 
-AIコメント生成・AI設問生成・GitHub連携を使うときだけ必要です。
+AIコメント生成・AI設問生成を使うときだけ必要です。
 
 ### 4-1. LLMプロバイダのキーを用意（少なくとも1つ）
 
-本アプリは **Gemini / OpenRouter / Ollama** の3系統に対応し、設定した順に自動フォールバックします（あるプロバイダが落ちても次を試す）。基本は**クレジット不要の無料モデル**を使えます。
+本アプリは **OpenRouter / Gemini / Ollama** の3系統に対応し、設定した順に自動フォールバックします（あるプロバイダが落ちても次を試す）。基本は**クレジット不要の無料モデル**を使えます。
 
-**① Gemini（既定の最優先）**
-1. https://aistudio.google.com/ で API キーを発行（無料、カード不要）
-2. 既定モデルは `gemini-2.5-flash-lite` → `gemini-2.5-flash` の順で試行
-3. 注意: Geminiの**無料枠は入出力がモデル改善に使われる**規約です。本アプリはスコアと傾向しかAIに送らない設計なので問題ありませんが、念のため把握しておいてください。
-
-**② OpenRouter（フォールバック先）**
+**① OpenRouter（推奨・最優先）**
 1. https://openrouter.ai/ にサインアップ（クレジットカード不要で無料モデルが使えます）
 2. API Key を発行（`sk-or-...`）
-3. 既定モデルは `openrouter/free`。これは「structured output対応の無料モデルを自動選択するルーター」で、特定モデルが消えても自動で別の無料モデルに切り替わります。
+3. モデルは `openrouter/free` が便利です。これは「structured output対応の無料モデルを自動選択するルーター」で、特定モデルが消えても自動で別の無料モデルに切り替わります。
+
+**② Gemini（無料枠・フォールバック先）**
+1. https://aistudio.google.com/ で API キーを発行（無料、カード不要）
+2. モデルは `gemini-3-flash`（無料枠：10 RPM / 1日1,500回）が標準
+3. 注意: Geminiの**無料枠は入出力がモデル改善に使われる**規約です。本アプリはスコアと傾向しかAIに送らない設計なので問題ありませんが、念のため把握しておいてください。
 
 **③ Ollama（自宅サーバー・最終フォールバック）**
 - 自宅の Ollama（例 `https://ollama.gerupon.uk`）を使えます。Cloudflare Access の背後にある場合は、後述の Service Token を設定します。
-- 既定モデルは日本語可の `qwen2.5:7b`。
+- モデルは日本語可の `qwen2.5:7b` などを想定。
 
-> **無料モデルの推奨**: 無料枠の内容は変わりやすいので、自動選択ルーターである OpenRouter の `openrouter/free` を候補に含めておくと安定します。
+> **無料モデルの推奨**: response_format対応・日本語OKの無料モデルとして、OpenRouterの `openrouter/free` と `meta-llama/llama-4-maverick:free`、Geminiの `gemini-3-flash` / `gemini-2.5-flash-lite` が使えます。無料枠の内容は変わりやすいので、`openrouter/free`（自動選択ルーター）を先頭に置くのが最も安定します。
 
 ### 4-2. Vercel にデプロイ
 
@@ -138,13 +147,13 @@ AIコメント生成・AI設問生成・GitHub連携を使うときだけ必要�
 
 `api/` 配下が自動的に Functions として認識されます。デプロイ後、`https://<プロジェクト名>.vercel.app` が発行されます。
 
-> **実行時間の上限**: `vercel.json` で `api/*.js` の `maxDuration` を 300 秒に設定しています。実際の上限はプランに従い、Hobbyプランでは60秒が上限です。本アプリは**設問を数問ずつ分割生成**するので、Hobbyプランの60秒制限でも大量の設問を安全に作れます（1バッチが短時間で終わるため）。
+> **実行時間の上限**: Vercelの関数はHobbyプランでHTTPリクエストあたり最大60秒、Proプランで最大300秒です。本アプリは**設問を5問ずつ分割生成**するので、Hobbyプランの60秒制限でも大量の設問を安全に作れます（1バッチが短時間で終わるため）。
 
 ### 4-3. 環境変数を設定（最重要）
 
-Vercel の **Settings → Environment Variables** で登録します。**使う機能の分だけ**設定すればOKです。
+Vercel の **Settings → Environment Variables** で登録します。**使うプロバイダの分だけ**設定すればOKです。
 
-**共通**
+**共通（必須）**
 
 | 変数名 | 必須 | 説明 | 例 |
 |---|---|---|---|
@@ -152,21 +161,21 @@ Vercel の **Settings → Environment Variables** で登録します。**使う�
 | `ADMIN_PASSWORD` | ✅(管理者機能) | 管理者ログイン用パスワード | 任意の強固な文字列 |
 | `ADMIN_TOKEN_SECRET` | ✅(管理者機能) | トークン署名用シークレット | 長いランダム文字列 |
 | `APP_NAME` | 任意 | OpenRouter 表示名 | `AI Literacy Test` |
-| `LLM_PROVIDER_ORDER` | 任意 | フォールバック順（既定 `gemini,openrouter,ollama`） | `openrouter,gemini,ollama` |
-
-**Gemini を使う場合**
-
-| 変数名 | 説明 | 既定値 |
-|---|---|---|
-| `GEMINI_API_KEY` | APIキー（`AIza...`） | — |
-| `GEMINI_MODEL` | モデル（カンマ区切りで複数可・安い順推奨） | `gemini-2.5-flash-lite,gemini-2.5-flash` |
+| `LLM_PROVIDER_ORDER` | 任意 | フォールバック順 | `gemini,openrouter,ollama`（既定値） |
 
 **OpenRouter を使う場合**
 
-| 変数名 | 説明 | 既定値 |
+| 変数名 | 説明 | 例 |
 |---|---|---|
-| `OPENROUTER_API_KEY` | APIキー（`sk-or-v1-...`） | — |
-| `OPENROUTER_MODEL` | モデル（カンマ区切りで複数可） | `openrouter/free` ほか |
+| `OPENROUTER_API_KEY` | APIキー | `sk-or-v1-...` |
+| `OPENROUTER_MODEL` | モデル（カンマ区切りで複数可） | `openrouter/free,meta-llama/llama-4-maverick:free` |
+
+**Gemini を使う場合**
+
+| 変数名 | 説明 | 例 |
+|---|---|---|
+| `GEMINI_API_KEY` | APIキー | `AIza...` |
+| `GEMINI_MODEL` | モデル（カンマ区切りで複数可・安い順推奨） | `gemini-2.5-flash-lite,gemini-2.5-flash` |
 
 **Ollama（自宅サーバー）を使う場合**
 
@@ -176,21 +185,16 @@ Vercel の **Settings → Environment Variables** で登録します。**使う�
 | `OLLAMA_MODEL` | モデル（カンマ区切りで複数可） | `qwen2.5:7b` |
 | `CF_ACCESS_CLIENT_ID` | Cloudflare Service Token のID（認証背後の場合） | `xxxx.access` |
 | `CF_ACCESS_CLIENT_SECRET` | 同 Secret | （長い文字列） |
-
-**GitHub連携（複数セットの保存・切替）を使う場合**
-
-| 変数名 | 説明 | 例 |
-|---|---|---|
-| `GITHUB_TOKEN` | Fine-grained PAT（Contents: Read and write） | `github_pat_...` |
+| `GITHUB_TOKEN` | 複数セット保存・切替を使う場合のPAT（Contents: Read and write） | `github_pat_...` |
 | `GITHUB_OWNER` | リポジトリ所有者 | `yourname` |
 | `GITHUB_REPO` | リポジトリ名 | `ai-literacy-test` |
-| `GITHUB_BRANCH` | 対象ブランチ（省略時 `main`） | `main` |
+| `GITHUB_BRANCH` | 対象ブランチ（省略時 main） | `main` |
 
-> **GitHub連携について**: 管理画面から複数の出題セットを `public/data/sets/` に保存し、検定で使うものを切り替える機能です。トークンは **Fine-grained personal access token** を推奨し、権限は対象リポジトリの **Contents: Read and write** のみに絞ってください。トークンはVercelの環境変数に置くためブラウザには露出しません。未設定でも従来のダウンロード方式は使えます。
+> **GitHub連携（複数セットの保存・切替）について**: 管理画面から複数の出題セットをGitHubに保存し、検定で使うものを切り替える機能です。使うには上記 `GITHUB_TOKEN` / `GITHUB_OWNER` / `GITHUB_REPO` を設定します。トークンは **Fine-grained personal access token** を推奨し、権限は対象リポジトリの **Contents: Read and write** のみに絞ってください。トークンはVercelの環境変数に置くためブラウザには露出しません。未設定でも従来のダウンロード方式は使えます。
 
-> **Cloudflare Access 背後のOllamaについて**: `ollama.gerupon.uk` がメール認証（Cloudflare Access）の背後にある場合、直接アクセスはログイン画面にリダイレクトされて失敗します。Cloudflare Zero Trust → Access → **Service Auth → Create Service Token** で発行し、対象アプリのポリシーに「Service Auth」を許可するルールを追加してください。発行された Client ID / Secret を上記環境変数に設定すれば、Vercelの関数が認証を通過してOllamaを呼べます。
+> **Cloudflare Access 背後のOllamaについて**: `ollama.gerupon.uk` がメール認証（Cloudflare Access）の背後にある場合、ブラウザやサーバーからの直接アクセスはログイン画面にリダイレクトされて失敗します。これを通過するには **Service Token** を使います。Cloudflare Zero Trust → Access → **Service Auth → Create Service Token** で発行し、対象アプリのポリシーに「Service Auth」を許可するルールを追加してください。発行された Client ID / Secret を上記環境変数に設定すれば、Vercelの関数が認証を通過してOllamaを呼べます。
 
-> `SITE_URL` は**スキームを含むドメインのみ**（末尾のパスやスラッシュなし）。例: `https://yourname.github.io`。CORS の許可Origin判定に使われます。ローカル開発用に `http://localhost:*` / `http://127.0.0.1:*` は常に許可されます。
+> `SITE_URL` は**スキームを含むドメインのみ**（末尾のパスやスラッシュなし）。例: `https://yourname.github.io`。CORS の許可Origin判定に使われます。
 
 設定後、**Deployments → 最新 → Redeploy** で再デプロイすると環境変数が反映されます（**これを忘れると反映されません**）。
 
@@ -212,8 +216,8 @@ window.AILIT_CONFIG = {
 ## 5. 受験者の使い方
 
 1. 公開URLを開く
-2. 出題セット名と注意事項を確認して「検定を開始」
-3. 設定された問題数に回答（単一選択／複数選択）
+2. 注意事項を確認して「検定を開始」
+3. 20問に回答（単一選択／複数選択）
 4. 結果画面でスコア・ランク・偏差値風スコア・レーダーチャートを確認
 5. 「結果をコピー / CSV保存 / チャート画像保存 / メールで共有」が利用可能
 
@@ -223,95 +227,39 @@ window.AILIT_CONFIG = {
 
 ## 6. 管理者の使い方
 
-管理画面（`admin.html`）は「**AI生成**」「**設問プール／組み立て**」の2タブ構成です。
-
-### 6-1. AI生成タブ
-
 1. トップ画面下部の「管理者モード」または `admin.html` を開く
 2. `ADMIN_PASSWORD` でログイン（API未設定時はローカル確認モード）
-3. **現在の設問セット**で Set ID・バージョン・更新日・出題数・合格ライン・在庫数を確認
-4. **出題セットの保存・切替**（GitHub連携時）で `sets/` 内のセット一覧から使うものを選択
-5. **出題設定**で出題数・難易度・合格ライン・生成バッチ数を調整
-6. **カテゴリ別出題割合**で重み／優先度を調整
+3. 出題数・難易度・カテゴリ配分（重み／優先度）を調整
    - 合計が出題数と一致しない場合、優先度に基づき自動補正
    - 全カテゴリ0なら初期配分を使用
-   - 在庫が出題数に足りない場合はアラートを表示し、受験をブロック
-7. **設問生成指示**に変更指示を自然文で入力し「設問案を生成」（要 Vercel + LLMキー）
-8. プレビューで内容を確認し「この内容を選択中の出題セットに保存」
+4. 変更指示を自然文で入力し「設問を生成」（要 Vercel + OpenRouter）
+5. プレビューで内容を確認し「採用」→ `current-question-set.json` がダウンロードされる
+6. ダウンロードしたJSONを `public/data/current-question-set.json` に上書きして GitHub へコミット
 
-> GitHub連携が有効なら直接コミットされます。未設定の場合は JSON がダウンロードされるので、`public/data/current-question-set.json` に上書きして GitHub へコミットしてください。
+> 初期版では設問の反映は手動コミット方式です（安全のため）。自動更新は将来拡張です。
 
-### 6-2. 設問プール／組み立てタブ（複数JSONから出題セットを作る）
+### 設問プール／組み立てモード（複数JSONから出題セットを作る）
 
-AI生成は1回で完璧にならないことがあります。そこで「複数回生成したJSONをプールし、人が選んで組み立てる」モードを用意しています。
+AI生成は1回で完璧にならないことがあります。そこで「複数回生成したJSONをプールし、人が選んで組み立てる」モードを用意しています。管理画面の上部タブ「**設問プール／組み立て**」を開きます。
 
-1. **JSONをアップロード**: AI生成などで作った設問セットJSONを複数選択またはドラッグ＆ドロップで読み込みます（ブラウザ内処理・サーバー送信なし）。形式は `{questions:[...]}`、設問の配列、`{questionSetDraft:{questions}}` のいずれも受け付けます。
-2. **GitHubから読み込み**: GitHub連携が有効なら、`sets/` に保存済みのセットを直接読み込んで編集できます。
-3. **自動分類と重複検出**: 全設問が1つのプールに統合され、カテゴリ別に表示されます。内容が近いものには「重複の可能性」バッジが付きます（自動除外はせず人が判断。「重複候補を一括解除」ボタンもあります）。
-4. **選択と手入力編集**: 採用する設問にチェックを入れます。問題文・選択肢・正解・カテゴリ・難易度・解説をその場で編集でき、不要な設問は削除できます。
-5. **メタ情報の編集**: Set ID（内部名）・バージョン・出題数・合格ライン・ランダム設定を手入力できます。
-6. **出題数より多いセットも可**: 採用数が出題数より多い場合、自動で「**ランダム出題モード**」になり、検定では毎回ランダムに指定数だけ出題されます。
-7. **書き出し**: 「current-question-set.json を書き出す」でダウンロード、または GitHub へ直接保存して本番反映します。
+1. **JSONをアップロード**: AI生成などで作った設問セットJSONを複数選択で読み込みます（ブラウザ内処理・サーバー送信なし）。形式は `{questions:[...]}`、設問の配列、`{questionSetDraft:{questions}}` のいずれも受け付けます。
+2. **自動分類と重複検出**: 全設問が1つのプールに統合され、カテゴリ別に表示されます。内容が近いものには「重複の可能性」バッジが付きます（自動除外はせず人が判断。「重複候補を一括解除」ボタンもあります）。
+3. **選択と手入力編集**: 採用する設問にチェックを入れます。問題文・選択肢・正解・カテゴリ・難易度・解説をその場で編集でき、不要な設問は削除できます。
+4. **メタ情報の編集**: Set ID（内部名）・バージョン・出題数・合格ライン・ランダム設定を手入力できます（アップロードしたJSONから自動補完された値を必要に応じて修正）。
+5. **出題数より多いセットも可**: 採用数が出題数より多い場合、自動で「**ランダム出題モード**」になり、検定では毎回ランダムに指定数だけ出題されます。
+6. **書き出し**: 「current-question-set.json を書き出す」でダウンロードし、GitHubの `public/data/` に上書きコミットすると本番反映されます。
 
-### 6-3. モデルが使えないとき —「使えるモデルを確認」ボタン
+### モデルが使えないとき —「使えるモデルを確認」ボタン
 
-設問生成で「全プロバイダで失敗」になる主因は、**モデル名が古い／廃止された**ことです（無料モデルは頻繁に入れ替わります）。管理画面の「**使えるモデルを確認**」ボタン（`api/list-models.js`）を押すと、あなたのキーで実際に使える Gemini / OpenRouter / Ollama のモデル名が一覧表示され、さらに実リクエストを飛ばして 401（キー無効）/ 429（レート制限）/ 200（成功）を判別できます。表示された名前を Vercel の環境変数（`GEMINI_MODEL` / `OPENROUTER_MODEL` / `OLLAMA_MODEL`）に設定すれば確実です。
+設問生成で「全プロバイダで失敗」になる主因は、**モデル名が古い／廃止された**ことです（無料モデルは頻繁に入れ替わります）。管理画面の「**使えるモデルを確認**」ボタンを押すと、あなたのキーで実際に使える Gemini / OpenRouter / Ollama のモデル名が一覧表示されます。表示された名前を Vercel の環境変数（`GEMINI_MODEL` / `OPENROUTER_MODEL` / `OLLAMA_MODEL`）に設定すれば確実です。
 
 複数モデルをカンマ区切りで指定でき、順にフォールバックします。一時的な混雑（429 / 503）には自動でリトライ（指数バックオフ・最大2回）も入ります。
 
-> **有料Geminiを使う場合（コスト重視）**: `LLM_PROVIDER_ORDER=gemini,openrouter,ollama`（既定）にし、`GEMINI_MODEL=gemini-2.5-flash-lite,gemini-2.5-flash` を設定。最安の Flash-Lite が優先され、混雑時のみ標準 Flash に自動降格します。設問生成1回（20問）はおおむね数円以内に収まります。
+> **有料Geminiを使う場合（コスト重視）**: `LLM_PROVIDER_ORDER=gemini,openrouter,ollama`（既定）にし、`GEMINI_MODEL=gemini-2.5-flash-lite,gemini-2.5-flash` を設定。最安の Flash-Lite（$0.10/$0.40 per 1M）が優先され、混雑時のみ標準 Flash に自動降格します。設問生成1回（20問）はおおむね数円以内に収まります。
 
 ---
 
-## 7. 設問データの構造
-
-`public/data/` 配下のJSONは共通のスキーマを持ちます。
-
-```jsonc
-{
-  "questionSetId": "ai-literacy-2026-06-sample",
-  "version": "1.0.0",
-  "locked": false,                  // true のセットは編集対象外
-  "updatedAt": "2026-06-11T18:54:16.680Z",
-  "settings": {
-    "questionCount": 20,            // 実際に出題する数
-    "passingScore": 70,
-    "randomizeQuestions": true,     // 在庫 > 出題数 のときランダム抽出
-    "randomizeChoices": true,
-    "categoryDistributionMode": "weighted",
-    "categoryDistribution": [ { "categoryId": "C-001", "weight": 3, "priority": 3 }, … ]
-  },
-  "categories": [ … ],
-  "questions": [
-    {
-      "id": "Q-001",
-      "category": "基本理解",
-      "difficulty": "standard",
-      "type": "single",             // single | multiple
-      "question": "…",
-      "choices": ["…", "…", "…", "…"],
-      "answer": [0],                // 正解インデックスの配列
-      "explanation": "…",
-      "tags": ["…"]
-    }
-  ]
-}
-```
-
-**同梱されている設問セット**
-
-| ファイル | 設問数 | 用途 |
-|---|---:|---|
-| `current-question-set.json` | 在庫52問 / 出題20問 | 本番で読まれる現行セット |
-| `sample-question-set.json` | 20問 | 初期サンプル（`locked: true`） |
-| `sets/ai-literacy-it-engineer-2026-06-standard.json` | 100問 | ITエンジニア向け |
-| `sets/ai-literacy-tax-office-2026-06-100.json` | 100問 | 税理士事務所向け |
-
-`sets/` と `active-set.json` は管理画面のGitHub連携（`api/github-save.js`）が生成・更新します。対応アクションは `list` / `get` / `save` / `activate` / `save_current` です。
-
----
-
-## 8. カテゴリと初期配分
+## 7. カテゴリと初期配分
 
 | ID | カテゴリ | 初期問題数 | 優先度 |
 |---|---|---:|---:|
@@ -325,39 +273,34 @@ AI生成は1回で完璧にならないことがあります。そこで「複�
 
 合計20問。ランクは S(90+)/A(80+)/B(70+)/C(60+)/D、合格ライン70点。
 
-> カテゴリ定義はフロント（`public/assets/js/categories.js`）とサーバー（`api/_lib.js` の `CATEGORY_DEFS`）の**両方に存在するため、変更時は必ず両方を揃えてください**。
-
 ---
 
-## 9. セキュリティ設計
+## 8. セキュリティ設計
 
-- LLMのAPIキー・管理者パスワード・GitHub PAT はフロントに含めず、Vercel 環境変数のみで管理。
+- OpenRouter APIキー・管理者パスワードはフロントに含めず、Vercel 環境変数のみで管理。
 - AIへ送るのはスコアとカテゴリ別傾向だけ。氏名・社員番号・メール・部署・顧客名などは送らない（フロントとサーバーの二重除去）。
 - 管理者トークンは HMAC-SHA256 署名付き・有効期限1時間。
-- 管理者パスワードの照合は `crypto.timingSafeEqual` によるタイミング攻撃対策済み。
-- CORS は `SITE_URL`（GitHub Pages）と localhost からのアクセスのみ許可。
+- CORS は `SITE_URL`（GitHub Pages）からのアクセスのみ許可。
 
 ---
 
-## 10. トラブルシューティング
+## 9. トラブルシューティング
 
 | 症状 | 原因と対処 |
 |---|---|
 | AIコメントが定型文のまま | `config.js` の `apiBase` が空、または Vercel 未デプロイ。手順4を確認。 |
 | ブラウザに CORS エラー | Vercel の `SITE_URL` が GitHub Pages のURLと不一致。スキーム込み・末尾スラッシュなしで設定。 |
 | 管理者ログインで500 | `ADMIN_PASSWORD` / `ADMIN_TOKEN_SECRET` が未設定。Vercel環境変数を設定し再デプロイ。 |
-| 設問生成が502（AI設問生成に失敗） | 全プロバイダで失敗。Vercelログの`detail`を確認。各キー・モデル名・残高、`LLM_PROVIDER_ORDER`を点検。「使えるモデルを確認」が最短。 |
+| 設問生成が502（AI設問生成に失敗） | 全プロバイダで失敗。Vercelログの`detail`を確認。各キー・モデル名・残高、`LLM_PROVIDER_ORDER`を点検。 |
 | 「AI応答を解析できませんでした」 | モデルがJSON以外を返した。`openrouter/free` など structured output 対応モデルに変更。分割生成で1バッチを小さく保つと改善。 |
 | 設問生成が途中で止まる/タイムアウト | 1バッチは数問なので通常は短時間で完了。特定バッチだけ失敗する場合は自動で1回再試行。繰り返す場合はプロバイダを変更。 |
-| GitHubへの保存が失敗 | `GITHUB_TOKEN` / `GITHUB_OWNER` / `GITHUB_REPO` を確認。PATに対象リポジトリの Contents: Read and write が付与されているか。 |
 | Ollamaだけ失敗（HTMLが返る） | Cloudflare Access に阻まれている。Service Token（`CF_ACCESS_CLIENT_ID/SECRET`）を設定し、対象アプリにService Authポリシーを追加。 |
-| Geminiが429 | 無料枠のレート上限。少し待つか、`LLM_PROVIDER_ORDER`でOpenRouterを先に。 |
+| Geminiが429 | 無料枠のレート上限（10 RPM / 1日1,500回）。少し待つか、`LLM_PROVIDER_ORDER`でOpenRouterを先に。 |
 | レーダーチャートが出ない | Chart.js CDN への通信がブロックされていないか確認。 |
-| 受験開始でブロックされる | 在庫の設問数が出題数に足りていない。管理画面で出題数を下げるか設問を追加。 |
 
 ---
 
-## 11. MVP 完成条件（仕様書 §7）との対応
+## 10. MVP 完成条件（仕様書 §7）との対応
 
 - ✅ PCとスマホで受験できる（レスポンシブ 599/1024px）
 - ✅ 20問の初期設問で採点できる
@@ -365,11 +308,46 @@ AI生成は1回で完璧にならないことがあります。そこで「複�
 - ✅ 結果コピー / CSV保存 / レーダーチャート画像保存
 - ✅ ブラウザ起点で結果メール共有（Web Share API + `mailto:` フォールバック）
 - ✅ 管理者画面で設問生成指示・難易度・カテゴリ配分を設定
-- ✅ LLMのAPIキーがフロントに露出していない
+- ✅ OpenRouter APIキーがフロントに露出していない
+
+---
+
+## 出題セットごとの名称・文言（ver 1.1.0〜）
+
+出題セットJSONの最上位に、次の項目を（すべて任意で）書くと、画面・結果コメント・書き出しの名称や文言がセットごとに切り替わります。AIリテラシー以外のテーマ（例: 情報セキュリティ）にも、そのまま使えます。
+
+| 項目 | 内容 | 使われる場所 |
+|---|---|---|
+| `title` | 検定の名前（例: `情報セキュリティ検定`） | ヘッダ、タブ名、結果画像の見出し、結果のコピー文、メール件名 |
+| `theme` | コメント用のテーマ名（例: `情報セキュリティ`） | AIコメントの指示文（「〇〇研修のフィードバック担当」） |
+| `description` | トップ画面の説明文 | トップ画面 |
+| `footerNote` | トップ画面下部の注記 | トップ画面のフッター |
+| `resultNote` | 結果のコピー文末尾の注記 | 結果のコピー・メール本文 |
+| `perfectMessage` | 全問正解のときの文 | 結果画面の復習ポイント |
+| `rankComments` | `{ "S": "…", "A": "…", "B": "…", "C": "…", "D": "…" }` | 結果画面のランク別の一言 |
+
+- **書かなかった場合**: `title` も `theme` も無いセットは、従来どおり「AIリテラシー検定」の名前・文言になります。`title` だけ（または `theme` だけ）を書いたセットは、テーマ名を含まない中立の既定文になります。
+- **読み込み前の表示**: セットを読み込む前（または読み込めなかったとき）のヘッダは「検定」です。
+- **管理者画面**: ヘッダ名・タブ名は、現在の出題セットの `title` になります。設問プールからの書き出し、設定の保存、AI生成の下書きでは、これらの項目をそのまま引き継ぎます（消えません）。値の編集は、JSONファイルを直接書き換えて読み込み直してください。
+- **注意**: `title` は40文字、`theme` は40文字まで。AIコメントの指示文に入る前に、改行や記号は取り除かれます。
 
 ---
 
 ## 変更履歴
+
+### ver 1.1.2（2026-10）
+- 管理者画面のヘッダ名とタブ名も、現在の出題セットの `title` から反映するように（セット切替・保存のたびに更新。未読込のときは「検定」）。英語の副題（Literacy Calibration / Admin Console）は変更なし
+
+### ver 1.1.1（2026-10）
+- 管理者画面のヘッダとタブ名を「リテラシー検定」に変更（ver 1.1.2 でセットのタイトル反映に置き換え）
+
+### ver 1.1.0（2026-10）
+- 出題セットごとに、検定の名前・テーマ・説明文・注記・ランク別コメントを切り替えられるように（上記参照）
+- 結果コメントの指示文を、固定の「AIリテラシー」から、セットのテーマに応じた内容に変更
+- 結果画像・コピー文・CSV・メール件名の名称を、セットのタイトルに合わせるように。保存ファイル名は `quiz-result` などの共通名に変更
+- レーダーチャートのカテゴリ名の文字色を、明るい配色に合わせて濃い色に修正（白に近い色で見えにくかった）
+- 長いカテゴリ名を折り返して表示し、結果画像のカテゴリ別棒グラフでも名前が省略されにくいように調整
+- 「要再学習」の判定が2行に折り返されないよう調整
 
 ### ver 1.0.0（2026-06）
 - 初期リリース版
@@ -379,14 +357,8 @@ AI生成は1回で完璧にならないことがあります。そこで「複�
 - 管理者画面（出題数・合格ライン・カテゴリ配分の設定、手入力の出題数と在庫超過アラート）
 - 設問プール／組み立て機能（ファイル・GitHubからの読み込み、ドラッグ＆ドロップ、カテゴリ集約、テキストエリア自動拡張）
 - GitHubストレージ連携（複数セットの保存・一覧・切替、直接pushとダウンロードの両対応、保存先セット名の指定）
-- 利用可能モデルの診断機能（`api/list-models.js`）
 - 出題配分ロジック（重みは出題数ベースで按分、優先度は端数調整に使用）
 - 出題数不足時の受験ブロックとアラート
 - 結果画像の合成保存（スコア・レーダー・カテゴリ別横棒、JSTタイムスタンプ付きファイル名）
 - 配色をインディゴ基調のライトテーマに、フォントを Sawarabi Gothic に統一
 - トップ画面に出題セット名を表示、フッターに著作権表記・バージョン情報
-- GitHub Actions による GitHub Pages 自動デプロイ
-
----
-
-© 2026 SIKUMI LAB

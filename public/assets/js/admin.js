@@ -6,6 +6,7 @@ import { downloadBlob } from './export.js';
 import { adminLogin, generateQuestions, listModels, isApiConfigured,
   ghListSets, ghActivateSet, ghSaveCurrent } from './apiClient.js';
 import { initPool } from './pool.js';
+import { pickBrandFields, resolveBrand } from './branding.js';
 import { CATEGORY_DEFS } from './categories.js';
 
 const QUESTION_SET_URL = 'data/current-question-set.json';
@@ -47,11 +48,21 @@ function questionSetFileName() {
   return `current-question-set_${jstStamp()}.json`;
 }
 
+// ヘッダ名・タブ名を、現在の出題セットのタイトルに合わせる（未読込のときは仮の名前「検定」）
+function applyAdminBrand() {
+  const b = resolveBrand(questionSet);
+  const el = document.getElementById('brand-name');
+  if (el) el.textContent = b.title;
+  document.title = `管理者モード｜${b.title}`;
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  applyAdminBrand();
   bindEvents();
   try {
     const res = await fetch(QUESTION_SET_URL, { cache: 'no-store' });
     questionSet = await res.json();
+    applyAdminBrand();
   } catch (e) {
     console.error(e);
   }
@@ -243,6 +254,7 @@ async function onActivateSet(setId) {
 // ---------- 現在の設問セット表示 ----------
 function fillCurrentSet() {
   if (!questionSet) return;
+  applyAdminBrand();   // セット切替・保存のたびにヘッダ名も更新
   const s = questionSet.settings || {};
   $('d-setid').textContent = questionSet.questionSetId || '—';
   $('d-version').textContent = questionSet.version || '—';
@@ -518,6 +530,7 @@ function buildDraftFromQuestions(questions, settings, current, meta) {
   return {
     questionSetId: (current && current.questionSetId) || 'ai-generated-draft',
     version: 'draft',
+    ...pickBrandFields(current),   // 現在のセットの名称・文言を引き継ぐ
     locked: false,
     updatedAt: new Date().toISOString(),
     generatedBy: meta && meta.provider ? `${meta.provider}/${meta.model}` : 'ai',

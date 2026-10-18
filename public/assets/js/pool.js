@@ -10,6 +10,7 @@
 import { downloadBlob } from './export.js';
 import { CATEGORY_DEFS } from './categories.js';
 import { ghListSets, ghGetSet, ghSaveSet, isApiConfigured } from './apiClient.js';
+import { pickBrandFields } from './branding.js';
 
 // プール状態
 let pool = [];          // { uid, question, choices[], answer[], type, category, difficulty, explanation, tags[], selected, dupOf }
@@ -20,6 +21,7 @@ let meta = {
   passingScore: 70,
   randomizeQuestions: false,
   randomizeChoices: true,
+  brand: {},            // 検定の名前・テーマ等（title, theme など）。読み込んだセットから引き継ぐ
 };
 let uidSeq = 1;
 let sourceSetId = null;   // GitHubから読み込んだ場合の元セットID（上書き保存先）
@@ -125,6 +127,7 @@ function absorbMeta(data) {
   const src = data && data.questionSetDraft ? data.questionSetDraft : data;
   if (!src || typeof src !== 'object') return;
   if (!meta.questionSetId && src.questionSetId) meta.questionSetId = String(src.questionSetId);
+  if (!Object.keys(meta.brand || {}).length) meta.brand = pickBrandFields(src);
   if (src.version && meta.version === '1.0.0') meta.version = String(src.version);
   const s = src.settings || {};
   if (s.passingScore != null && meta.passingScore === 70) meta.passingScore = Number(s.passingScore);
@@ -322,6 +325,7 @@ function absorbSetMeta(qs) {
   const s = qs.settings || {};
   meta.questionSetId = qs.questionSetId || meta.questionSetId;
   meta.version = qs.version || meta.version;
+  meta.brand = pickBrandFields(qs);   // 読み込んだセットの名称・文言を引き継ぐ（保存時に消えないように）
   if (s.questionCount != null) meta.questionCount = s.questionCount;
   if (s.passingScore != null) meta.passingScore = s.passingScore;
   if (s.randomizeQuestions != null) meta.randomizeQuestions = s.randomizeQuestions;
@@ -523,6 +527,7 @@ function buildExportObject() {
   return {
     questionSetId: meta.questionSetId || `custom-${Date.now()}`,
     version: meta.version || '1.0.0',
+    ...(meta.brand || {}),
     updatedAt: new Date().toISOString(),
     settings: {
       questionCount: meta.questionCount,

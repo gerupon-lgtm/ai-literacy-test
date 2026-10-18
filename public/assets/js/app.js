@@ -2,7 +2,8 @@
 // app.js  受験者向けメインコントローラ
 // =========================================================
 import { buildQuizQuestions, createQuizState, estimateMinutes, validateQuestionSet } from './quiz.js';
-import { buildResultSummary, RANK_COMMENT } from './scoring.js';
+import { buildResultSummary } from './scoring.js';
+import { resolveBrand, applyBrand, getBrand } from './branding.js';
 import { renderRadar, downloadRadarPng, resultToPngBlob } from './chart.js';
 import {
   copyResult, csvBlob, txtBlob, downloadBlob,
@@ -24,6 +25,7 @@ document.addEventListener('DOMContentLoaded', init);
 async function init() {
   cacheEls();
   bindEvents();
+  applyBrand(resolveBrand(null)); // 読み込み前は仮の名前（検定）
   try {
     // キャッシュバスター（タイムスタンプ）を付けてCDN/ブラウザの古いキャッシュを回避し、
     // セット切替直後でも最新の設問データを取得しやすくする。
@@ -31,6 +33,7 @@ async function init() {
     const res = await fetch(url, { cache: 'no-store' });
     if (!res.ok) throw new Error('設問データを取得できませんでした。');
     questionSet = await res.json();
+    applyBrand(resolveBrand(questionSet)); // セットのタイトル・文言を反映
     fillTopMeta(); // 内部で出題セットを検証し、開始ボタンの有効/無効を制御
   } catch (err) {
     showToast('設問データの読み込みに失敗しました。');
@@ -81,7 +84,7 @@ function bindEvents() {
   if (btnHome) btnHome.addEventListener('click', () => { showScreen('top'); window.scrollTo({ top: 0 }); });
   els.btnCopy.addEventListener('click', onCopy);
   els.btnCsv.addEventListener('click', () => {
-    downloadBlob(csvBlob(summary), 'ai-literacy-result.csv');
+    downloadBlob(csvBlob(summary), 'quiz-result.csv');
     showToast('CSVを保存しました。');
   });
   els.btnPng.addEventListener('click', async () => {
@@ -100,11 +103,11 @@ function bindEvents() {
       });
     } catch (e) { blob = null; }
     if (blob) {
-      downloadBlob(blob, `ai-literacy-result_${jstStampApp()}.png`);
+      downloadBlob(blob, `quiz-result_${jstStampApp()}.png`);
       showToast('結果画像を保存しました。');
     } else {
       // フォールバック: レーダーのみ
-      const ok = await downloadRadarPng(`ai-literacy-radar_${jstStampApp()}.png`);
+      const ok = await downloadRadarPng(`quiz-radar_${jstStampApp()}.png`);
       showToast(ok ? 'チャート画像を保存しました。' : '画像を保存できませんでした。');
     }
   });
@@ -270,12 +273,12 @@ async function prepareAiComment() {
     return;
   }
   const sub = document.getElementById('loading-sub');
-  if (sub) sub.textContent = 'AIがあなたの理解度を分析し、コメントを作成しています…';
+  if (sub) sub.textContent = '理解度を分析し、コメントを作成しています…';
 
   const TIMEOUT_MS = 25000;
   try {
     const comment = await Promise.race([
-      analyzeResult(summary),
+      analyzeResult(summary, { title: getBrand().title, theme: getBrand().theme }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS)),
     ]);
     aiComment = comment || fallbackComment(summary);
@@ -289,7 +292,7 @@ function renderResult() {
   els.rRank.textContent = summary.rank;
   els.rRank.dataset.rank = summary.rank;
   els.rScore.textContent = summary.scoreRate;
-  els.rRankComment.textContent = RANK_COMMENT[summary.rank] || '';
+  els.rRankComment.textContent = getBrand().rankComments[summary.rank] || '';
   els.rCorrect.textContent = summary.correctCount;
   els.rQtotal.textContent = summary.totalQuestions;
   els.rDeviation.textContent = summary.aiLiteracyDeviation;
@@ -335,8 +338,8 @@ function renderReview() {
   });
 
   if (wrongs.length === 0) {
-    els.reviewList.innerHTML =
-      '<li class="review-item"><div class="rexp">全問正解です。安全なAI活用の基礎は十分に身についています。</div></li>';
+    els.reviewList.innerHTML = '<li class="review-item"><div class="rexp"></div></li>';
+    els.reviewList.querySelector('.rexp').textContent = getBrand().perfectMessage; // セット由来の文は textContent で安全に入れる
     return;
   }
   wrongs.forEach((q) => {
@@ -373,11 +376,11 @@ function fallbackComment(s) {
   const strong = s.strongCategories.length ? s.strongCategories.join('・') : null;
   const weak = s.weakCategories.length ? s.weakCategories.join('・') : null;
   let msg = `総合スコアは${s.scoreRate}点（ランク${s.rank}）でした。`;
-  if (strong) msg += `\n${strong}の理解度が高く、企業内利用の土台ができています。`;
+  if (strong) msg += `\n${strong}の理解度が高く、土台がしっかりできています。`;
   if (weak) {
-    msg += `\n一方で${weak}は正答率が伸びていません。該当カテゴリの解説を読み返し、社内ガイドラインと合わせて再確認すると安全に活用できます。`;
+    msg += `\n一方で${weak}は正答率が伸びていません。該当カテゴリの解説を読み返して、再確認しておきましょう。`;
   } else {
-    msg += `\n各カテゴリのバランスも取れています。今後は最新トレンドの変化にも目を向けていきましょう。`;
+    msg += `\n各カテゴリのバランスも取れています。今後も最新の動向に目を向けていきましょう。`;
   }
   return msg;
 }

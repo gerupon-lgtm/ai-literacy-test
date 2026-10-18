@@ -3,17 +3,44 @@
 // Chart.js v4 を前提（index.html でCDN読み込み）
 // =========================================================
 
+import { getBrand } from './branding.js';
+
 let radarInstance = null;
 
 const COLORS = {
-  line: '#1fa39b',
-  fill: 'rgba(31,163,155,0.22)',
-  point: '#36c5bb',
-  grid: 'rgba(127,222,214,0.16)',
-  angle: 'rgba(127,222,214,0.22)',
-  tick: 'rgba(183,201,210,0.65)',
-  label: '#eef4f6',
+  line: '#3f51b5',
+  fill: 'rgba(63,81,181,0.18)',
+  point: '#3f51b5',
+  grid: 'rgba(60,76,100,0.18)',
+  angle: 'rgba(60,76,100,0.22)',
+  tick: '#5b6b78',
+  label: '#1c2b39',
 };
+
+// 長いカテゴリ名を折り返す。
+// 「・」の区切りを優先し、区切りのない長い語は行の長さがそろうように等分する
+// （1文字だけ次の行に落ちるのを避ける）。1行は最大 max 文字。
+export function wrapLabel(text, max = 10) {
+  const s = String(text || '');
+  if (s.length <= max) return [s];
+  const tokens = s.split(/(?<=・)/);   // 「・」を直前の語に残して分割
+  const lines = [];
+  let cur = '';
+  const push = () => { if (cur) { lines.push(cur); cur = ''; } };
+  tokens.forEach((t) => {
+    if (t.length > max) {               // 区切りのない長い語は等分
+      push();
+      const n = Math.ceil(t.length / max);
+      const size = Math.ceil(t.length / n);
+      for (let k = 0; k < t.length; k += size) lines.push(t.slice(k, k + size));
+      return;
+    }
+    if ((cur + t).length > max) push();
+    cur += t;
+  });
+  push();
+  return lines;
+}
 
 /**
  * レーダーチャートを描画する
@@ -52,13 +79,15 @@ export function renderRadar(canvas, labels, data) {
     options: {
       responsive: true,
       maintainAspectRatio: true,
+      layout: { padding: { top: 6, bottom: 6, left: 30, right: 30 } },
+      devicePixelRatio: Math.max(2, window.devicePixelRatio || 1),  // 保存画像でも文字がにじまないように
       // PNG保存時に背景透過だと見づらいので、保存側で背景を敷く
       animation: { duration: 500 },
       plugins: {
         legend: { display: false },
         tooltip: {
           callbacks: {
-            label: (ctx) => ` ${ctx.label}: ${ctx.parsed.r}%`,
+            label: (ctx) => ` ${[].concat(ctx.label).join('')}: ${ctx.parsed.r}%`,
           },
         },
       },
@@ -77,6 +106,7 @@ export function renderRadar(canvas, labels, data) {
           pointLabels: {
             color: COLORS.label,
             font: { size: 12, family: '"Sawarabi Gothic", sans-serif', weight: '600' },
+            callback: (label) => wrapLabel(label, 10),
           },
         },
       },
@@ -103,7 +133,7 @@ export async function radarToPngBlob() {
   out.width = src.width * scale;
   out.height = src.height * scale;
   const ctx = out.getContext('2d');
-  ctx.fillStyle = '#0e2a3b';
+  ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, out.width, out.height);
   ctx.drawImage(src, 0, 0, out.width, out.height);
 
@@ -113,7 +143,7 @@ export async function radarToPngBlob() {
 }
 
 /** チャートを背景付きPNGとして直接ダウンロード */
-export async function downloadRadarPng(filename = 'ai-literacy-radar.png') {
+export async function downloadRadarPng(filename = 'quiz-radar.png') {
   const blob = await radarToPngBlob();
   if (!blob) return false;
   const url = URL.createObjectURL(blob);
@@ -158,7 +188,7 @@ export async function resultToPngBlob(summary) {
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = accent;
   ctx.font = 'bold 15px "Sawarabi Gothic", sans-serif';
-  ctx.fillText('AIリテラシー検定 結果', 32, 40);
+  ctx.fillText(`${getBrand().title} 結果`, 32, 40);
 
   // ランク（大きく）
   ctx.fillStyle = ink;
@@ -192,9 +222,6 @@ export async function resultToPngBlob(summary) {
     const dh = src.height * ratio;
     const dx = (W - dw) / 2;
     const dy = headerH + 10;
-    // レーダーは暗背景前提なので、白カードに乗せる
-    ctx.fillStyle = '#0e2a3b';
-    ctx.fillRect(dx - 8, dy - 8, dw + 16, dh + 16);
     ctx.drawImage(src, dx, dy, dw, dh);
   }
 
@@ -204,7 +231,7 @@ export async function resultToPngBlob(summary) {
   ctx.font = 'bold 15px "Sawarabi Gothic", sans-serif';
   ctx.fillText('カテゴリ別 理解度', 32, barTop + 8);
 
-  const labelW = 130;
+  const labelW = 210;
   const barX = 32 + labelW;
   const barMaxW = W - barX - 70;
   let y = barTop + 36;
@@ -214,7 +241,15 @@ export async function resultToPngBlob(summary) {
     // ラベル
     ctx.fillStyle = ink;
     ctx.textAlign = 'left';
-    ctx.fillText(truncate(c.name, 9), 32, y + 13);
+    // 長い名前は文字を縮めて収める（最小10px。それでも入らなければ末尾を省略）
+    let fs = 13;
+    ctx.font = `${fs}px "Sawarabi Gothic", sans-serif`;
+    while (fs > 10 && ctx.measureText(c.name).width > labelW - 12) {
+      fs -= 1;
+      ctx.font = `${fs}px "Sawarabi Gothic", sans-serif`;
+    }
+    ctx.fillText(truncate(c.name, 20), 32, y + 13);
+    ctx.font = '13px "Sawarabi Gothic", sans-serif';
     // バー背景
     ctx.fillStyle = '#eef1f6';
     roundRect(ctx, barX, y, barMaxW, 16, 8); ctx.fill();
