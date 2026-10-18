@@ -1,0 +1,274 @@
+{
+  "publicFiles": {
+    "commit": "3c999c22baa9f2bbfcc269a6f201dd6c1e1eefae",
+    "base": "https://ai-test.sikumilab.com/",
+    "checkedAt": "2026-10-18T08:54:07.081Z",
+    "files": [
+      {
+        "path": "admin.html",
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bytes": 18608,
+        "sha256": "662d5f3ef4cdef444a28d067ca8688c9c5337804412fa1f918b2499dc26885a1"
+      },
+      {
+        "path": "assets/css/style.css",
+        "status": 200,
+        "contentType": "text/css; charset=utf-8",
+        "bytes": 26974,
+        "sha256": "eeeb92c4c6e19f9a98bc22723d230022f477b155e34fd500be024ea284708e10"
+      },
+      {
+        "path": "assets/js/admin.js",
+        "status": 200,
+        "contentType": "application/javascript; charset=utf-8",
+        "bytes": 30299,
+        "sha256": "b188f95653759eb61558a3e2eb49bec7cfe2c6fa77c7c25b7fff2dba7990f98b"
+      },
+      {
+        "path": "assets/js/apiClient.js",
+        "status": 200,
+        "contentType": "application/javascript; charset=utf-8",
+        "bytes": 9823,
+        "sha256": "d9917ca3322acb6455193c71dc274782c9857afac4ace949375cb50b3863f4b1"
+      },
+      {
+        "path": "assets/js/app.js",
+        "status": 200,
+        "contentType": "application/javascript; charset=utf-8",
+        "bytes": 17619,
+        "sha256": "6236db7c96bb612bf8c346d60da9946048474f22fb67c8c5521a183231bbce51"
+      },
+      {
+        "path": "assets/js/branding.js",
+        "status": 200,
+        "contentType": "application/javascript; charset=utf-8",
+        "bytes": 6095,
+        "sha256": "f156212bda9a750b6499f4ab62ddcf31a917c42782481e7eb5bf1c7a25e0a6ff"
+      },
+      {
+        "path": "assets/js/categories.js",
+        "status": 200,
+        "contentType": "application/javascript; charset=utf-8",
+        "bytes": 609,
+        "sha256": "eff11707af9034885a49099fa8eff10217ecc5873310656b191b9e377a7badb9"
+      },
+      {
+        "path": "assets/js/chart.js",
+        "status": 200,
+        "contentType": "application/javascript; charset=utf-8",
+        "bytes": 9451,
+        "sha256": "2fdcd8d0fe511151bbdd5f82d08d4e6be2f9e3ea3fa6d53d79ec3b2dfabe5575"
+      },
+      {
+        "path": "assets/js/config.js",
+        "status": 200,
+        "contentType": "application/javascript; charset=utf-8",
+        "bytes": 738,
+        "sha256": "cb8acaa4ef5dadf8344a15db93f7a02ddc451f19cb9560b1d9af035edabd5d6b"
+      },
+      {
+        "path": "assets/js/export.js",
+        "status": 200,
+        "contentType": "application/javascript; charset=utf-8",
+        "bytes": 5146,
+        "sha256": "9691f3ebf0ef21079f8cd07c2e74645cce498972db397a626b63e005e39ed315"
+      },
+      {
+        "path": "assets/js/import-dialog.js",
+        "status": 200,
+        "contentType": "application/javascript; charset=utf-8",
+        "bytes": 3657,
+        "sha256": "dd692a2c20c8ddab158b847e3e7cdd8c305bf2c8644051380dc79acebd1bc56b"
+      },
+      {
+        "path": "assets/js/pool-import.js",
+        "status": 200,
+        "contentType": "application/javascript; charset=utf-8",
+        "bytes": 1605,
+        "sha256": "14420c7f8abecfeef205f6a74a8e789e8c14425a6abc03d0d5fe3522f68fc8a7"
+      },
+      {
+        "path": "assets/js/pool.js",
+        "status": 200,
+        "contentType": "application/javascript; charset=utf-8",
+        "bytes": 34523,
+        "sha256": "c194ea8365540f3d959005aab4f004d621e28d9d2b7768c40304fc4d48d873fd"
+      },
+      {
+        "path": "assets/js/question-draft.js",
+        "status": 200,
+        "contentType": "application/javascript; charset=utf-8",
+        "bytes": 3117,
+        "sha256": "b347c546b508b22944dd28abdb27467b018ecdd36e82586c3779b75c55ea7c50"
+      },
+      {
+        "path": "assets/js/question-set.js",
+        "status": 200,
+        "contentType": "application/javascript; charset=utf-8",
+        "bytes": 4136,
+        "sha256": "cea1d228dba267fc233863158b53a880c623669026ed7fc38fa5ea3c64291bc0"
+      },
+      {
+        "path": "assets/js/quiz.js",
+        "status": 200,
+        "contentType": "application/javascript; charset=utf-8",
+        "bytes": 5639,
+        "sha256": "04863f4bd8da7d38124250675ff900cd29ed01f80b7c028f33a12ad418245e30"
+      },
+      {
+        "path": "assets/js/scoring.js",
+        "status": 200,
+        "contentType": "application/javascript; charset=utf-8",
+        "bytes": 6342,
+        "sha256": "e0286db628a6d17593d850fa5e000b179d7d5e8f4792de9870056057bc0ff549"
+      },
+      {
+        "path": "assets/js/set-list.js",
+        "status": 200,
+        "contentType": "application/javascript; charset=utf-8",
+        "bytes": 1802,
+        "sha256": "b9a2439d8a54f97cf452f73187c1969751bb4d73f1705b7e53d265aa67455dd0"
+      },
+      {
+        "path": "data/active-set.json",
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bytes": 85,
+        "sha256": "a7b2eb2f3bbf923e39c5b87d9ef21c6e83f2206c03ca7fc82d96e6a4d979ea26"
+      },
+      {
+        "path": "data/current-question-set.json",
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bytes": 94167,
+        "sha256": "ee9ab920ddfafc375a4717c7c43606d8315e5705837295b3cc96976af1904e77"
+      },
+      {
+        "path": "data/sample-question-set.json",
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bytes": 19422,
+        "sha256": "2373a1eb803028369debc2387c039ed0eef85c904ef1b85c55da3f6592cb4498"
+      },
+      {
+        "path": "data/sets/ai-literacy-it-engineer-2026-06-standard.json",
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bytes": 77272,
+        "sha256": "97dab934532f095f89156c86abcd5074df029e4a9ebc0fdf8ee1e8cc26bb2ec8"
+      },
+      {
+        "path": "data/sets/ai-literacy-tax-office-2026-06-100.json",
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bytes": 75676,
+        "sha256": "2a0fc0b1f78b7a3cb0b66c90499befc6585befeb888b637f09252547f9a7cd33"
+      },
+      {
+        "path": "data/sets/current-question-set.json",
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bytes": 50891,
+        "sha256": "f2eeb1f83d0c728746cec2ad137a0ecccf720c82e7b2d5cdc9d557502be48d4b"
+      },
+      {
+        "path": "data/sets/it-security-2026-10.json",
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bytes": 94167,
+        "sha256": "ee9ab920ddfafc375a4717c7c43606d8315e5705837295b3cc96976af1904e77"
+      },
+      {
+        "path": "data/sets/sample-question-set.json",
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bytes": 19422,
+        "sha256": "2373a1eb803028369debc2387c039ed0eef85c904ef1b85c55da3f6592cb4498"
+      },
+      {
+        "path": "docs/question-set-format.md",
+        "status": 200,
+        "contentType": "text/markdown; charset=utf-8",
+        "bytes": 17541,
+        "sha256": "e0ca7c10a9b6650648832f27f5d45b9d8329e1d1d4b35bdbe061875af87beeca"
+      },
+      {
+        "path": "docs/security-sample.json",
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bytes": 3168,
+        "sha256": "652e025c35afc3ae847b3bceeb9b1645f5f60bfb2415f10b221c4bf03ed6d9d8"
+      },
+      {
+        "path": "index.html",
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bytes": 9195,
+        "sha256": "283b7d812d261fbe4e0807f8d1286b24a5c1146edaa1d8db4fc74fa5c421ce8c"
+      }
+    ],
+    "api": [
+      {
+        "path": "github-save",
+        "status": 401,
+        "code": "UNAUTHORIZED"
+      },
+      {
+        "path": "generate-questions",
+        "status": 401,
+        "code": "UNAUTHORIZED"
+      },
+      {
+        "path": "list-models",
+        "status": 401,
+        "code": "UNAUTHORIZED"
+      }
+    ],
+    "status": "PASS"
+  },
+  "publicBrowser": {
+    "status": "PASS",
+    "base": "https://ai-test.sikumilab.com/",
+    "appVersion": "1.2.0",
+    "score": 100,
+    "analysis": [
+      {
+        "status": 200,
+        "ok": true,
+        "commentLength": 254
+      }
+    ],
+    "pageErrors": [],
+    "failedRequests": [],
+    "desktop": "Chromium complete 20-question quiz, live comment request, PNG and admin login screen",
+    "mobile": "390px PC WebKit: top, answer, next",
+    "adminMutations": 0,
+    "physicalDeviceTest": false
+  },
+  "localBrowser": {
+    "result": "PASS",
+    "checks": [
+      "20-question quiz, correct shuffled answers, real Chart.js, PNG download",
+      "admin login, identity display, atomic save, switch, disable/enable/delete, active-set protection",
+      "replace/add/cancel by logical ID, preserve B edits/selection, missing-ID entry with repository IDs, reject invalid answers",
+      "pool GitHub save preserves distinct IDs and synchronizes active public copy; custom-category generation UI",
+      "clearing an old set then importing a new one resets the save target to the new Set ID",
+      "390px WebKit: no horizontal overflow, ID-less import dialog and touch-size controls"
+    ],
+    "pageErrors": [],
+    "githubCommitsInMemory": 6,
+    "productionMutations": 0
+  },
+  "unitChecks": {
+    "existing": 17,
+    "additional": 13,
+    "status": "PASS"
+  },
+  "dataChecks": {
+    "sets": 8,
+    "quizDraws": 80,
+    "docsAndVersions": "PASS"
+  },
+  "sourceDataChanged": false
+}

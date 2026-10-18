@@ -25,8 +25,27 @@ JSONのSet IDと保存先IDを分け、修正版の再取込・セット整理�
 
 ## 公開確認
 
-未実施。この欄は公開後のコミット・GitHub Pagesワークフロー・Vercel配備状態・公開ファイルの照合結果で更新する。
+2026-10-18に公開・確認した。
+
+| 項目 | 結果 |
+|---|---|
+| アプリ版 | 1.2.0 |
+| 機能改修の検証コミット | 3c999c22baa9f2bbfcc269a6f201dd6c1e1eefae |
+| 公開URL | https://ai-test.sikumilab.com/ |
+| GitHub Pages | [39113176544](https://github.com/gerupon-lgtm/ai-literacy-test/actions/runs/39113176544)：success |
+| Vercel | dpl_3Vynsg6L6kgTyCCuCapCXqaZhoVD：production / READY / source=git |
+| Vercelの配備元 | 上記コミットと一致 |
+| 配信ファイル | public配下29ファイルのSHA-256がGitの内容と一致。HTML/JS/CSS/JSONの配信形式を確認 |
+| 通常のトップURL | 版1.2.0を確認 |
+| 管理API | github-save / generate-questions / list-modelsが未認証要求を401で拒否。公開元に対するCORSを確認 |
+| 公開ブラウザ | PC Chromiumで20問・100点・グラフ・PNG保存・管理者ログイン画面を確認 |
+| 実AIコメント | analyze-resultがHTTP 200 / ok=true、254文字のコメントを取得 |
+| 公開モバイル幅 | PC WebKitの390pxで表示・回答・次問への移動を確認 |
+| ブラウザエラー | 実行エラー0、通信失敗0 |
+| Vercelログ | この配備の公開確認を含む15分のerror/fatal検索で該当なし |
+
+ファイル照合値とブラウザ確認の要約は[verification-1.2.0.json](verification-1.2.0.json)に保存した。上記は機能改修コミットを対象にした証拠である。この後の公開記録追記はpublic配下の内容を変更しない。
 
 ## 残る確認の境界
 
-外部AIの実際の成功率・応答時間、実際の管理者認証情報による本番保存操作、物理スマートフォン・メールアプリの共有操作は、代用品やPC WebKitの確認で済んだとは扱わない。
+実AIコメントは上記1回の成功を確認したもので、外部AIの長期的な成功率・応答時間の保証ではない。実際の管理者認証情報による本番保存・削除・設問生成、物理スマートフォン・メールアプリの共有操作は、代用品やPC WebKitの確認で済んだとは扱わない。
